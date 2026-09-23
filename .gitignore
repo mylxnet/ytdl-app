@@ -6,6 +6,12 @@ config/cookies.txt.*
 # --- 提交信息临时文件 ---
 _commit_msg.txt
 
+# --- 调试/诊断临时脚本（一次性用完不留，_rebuild_push.sh 是发布脚本例外保留）---
+_chk_login.sh
+_diag_img.sh
+_push_acr.sh
+_verify_pull.sh
+
 # --- Python 产物 ---
 __pycache__/
 *.py[cod]

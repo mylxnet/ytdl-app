@@ -45,15 +45,30 @@ docker compose up -d --build
 ```
 
 ### 2. 部署（NAS / 服务器）
-```bash
-# 本机导出镜像
-docker save ytdl-app:latest | gzip > ytdl-app.tar.gz
 
-# NAS 上
-gunzip -c ytdl-app.tar.gz | docker load
+**推荐：从阿里云 ACR 拉取**
+
+```bash
 mkdir -p downloads config
-docker compose -f docker-compose.server.yml up -d
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+docker run -d --name ytdl-app --restart unless-stopped \
+  -p 8765:8765 \
+  -v "$PWD/downloads":/downloads \
+  -v "$PWD/config":/config \
+  -e TZ=Asia/Shanghai \
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
 ```
+
+**离线部署（NAS 无公网）**
+
+```bash
+# 联网机器导出
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0 -o ytdl-app-v3.0.0.tar
+# 拷到 NAS 后加载
+docker load -i ytdl-app-v3.0.0.tar
+```
+
+详见 [DEPLOY.md](./DEPLOY.md)。
 
 ### 3. 上传 Cookie（首次必须）
 1. 用浏览器登录 youtube.com

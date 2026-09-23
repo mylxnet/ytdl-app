@@ -100,6 +100,13 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 - **修复**：`.hidden { display:none !important; }`
 - **教训**：「靠声明顺序赌赢」的写法很脆。语义为「强制隐藏」的工具类，用 `!important` 锁死是更明确的选择
 
+### #6 buildx provenance 导致 ACR 推送失败
+- **现象**：`docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0` 报 `error from registry: unknown manifest class for application/vnd.oci.empty.v1+json`
+- **根因**：Docker Compose / buildx 默认开启 provenance + attestation，产物 manifest list 附带 `application/vnd.oci.empty.v1+json` 类型的 attestation 元数据，阿里云 ACR 不识别该 manifest class
+- **无效方案**：`docker save ytdl-app:latest -o tar && docker load -i tar` 重打包。tar 内保留完整 OCI 元数据，push 依然报同一错误。镜像 ID 不变（`f27cc96bdc24`），说明 attestation 就是原产物的一部分
+- **修复**：`docker buildx build --no-cache --provenance=false --platform linux/amd64 -t ytdl-app:latest .` 禁用 provenance 重新构建。产物变单 manifest，push 成功
+- **教训**：所有面向阿里云 ACR 的构建必须显式加 `--provenance=false`，并固化到发布脚本；不要依赖 `docker compose build` 默认行为
+
 ---
 
 ## 四、架构决策
@@ -208,6 +215,24 @@ docker exec -it ytdl-app bash
 docker save ytdl-app:latest | gzip > ytdl-app-v3.0.0.tar.gz
 ```
 
+### 推送到阿里云 ACR
+```bash
+# 必须用 buildx 且禁用 provenance（ACR 不识别 OCI attestation manifest，见踩坑 #6）
+docker buildx build --no-cache --provenance=false \
+    --platform linux/amd64 -t ytdl-app:latest .
+
+# 打 tag
+docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
+
+# 推送
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
+
+# 反向验证（按 digest 拉取，跳过本机 tag 缓存）
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返回的 digest>
+```
+
 ### NAS / 服务器部署
 ```bash
 # 上传 ytdl-app-v3.0.0.tar.gz 和 docker-compose.server.yml 到服务器
@@ -225,6 +250,7 @@ docker compose -f docker-compose.server.yml up -d
 5. 跑回归测试
 6. `git commit` 中文提交信息
 7. 导出镜像 `ytdl-app-v3.0.0.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
+8. 推送到 ACR：`docker buildx build --no-cache --provenance=false ...`（见上一节「推送到阿里云 ACR」）
 
 ---
 
@@ -245,6 +271,7 @@ docker compose -f docker-compose.server.yml up -d
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| V3.0.0 (ACR) | 2026-09-23 | 镜像推送至阿里云 ACR（v3.0.0 + latest），补充 DEPLOY.md、README 部署章节、踩坑 #6（buildx provenance） |
 | V3.0.0 | 2026-09-23 | 本文件首次建立，同步 V3 全部改动与踩坑记录 |
 | V2.x | 2026-09-22 | 项目交接文档首次建立 |
 
