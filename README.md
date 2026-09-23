@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.1** · by Mr lin（配套桌面工具 V1.0.0）
+**版本：V3.0.2** · by Mr lin（配套桌面工具 V1.0.0）
 
 ---
 
@@ -50,22 +50,22 @@ docker compose up -d --build
 
 ```bash
 mkdir -p downloads config
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
 docker run -d --name ytdl-app --restart unless-stopped \
   -p 8765:8765 \
   -v "$PWD/downloads":/downloads \
   -v "$PWD/config":/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
 ```
 
 **离线部署（NAS 无公网）**
 
 ```bash
 # 联网机器导出
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1 -o ytdl-app-v3.0.1.tar
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2 -o ytdl-app-v3.0.2.tar
 # 拷到 NAS 后加载
-docker load -i ytdl-app-v3.0.1.tar
+docker load -i ytdl-app-v3.0.2.tar
 ```
 
 详见 [DEPLOY.md](./doc/DEPLOY.md)。
@@ -234,6 +234,15 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 
 ## 更新日志
 
+### V3.0.2（2026-09-24）
+
+**修复**
+- **紧急修复 V3.0.1 引入的致命回归**：`_base_args()` 里 yt-dlp 参数名拼写错误（`--windowsfilenames` 应为 **`--windows-filenames`**），yt-dlp 报 `error: no such option` 直接退出，导致**解析、下载、Cookie 上传验证三处全部失效**
+- 实测验证（本机容器重建后）：`/api/version` → 3.0.2；`/api/probe` 普通视频与含 `🔊`、全角 `｜` 的视频均解析成功；真实下载仅音频 MP3 成功（9,143,012 字节），无 `.part` 写入错误
+
+**说明**
+- `--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |` 半角），emoji 与全角 `｜` 属合法字符不会被替换——NAS 上原始报错是否因此彻底解决，仍需 NAS 实测确认
+
 ### 桌面工具 V1.0.0（2026-09-24）
 
 **新增**
@@ -259,7 +268,7 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 ### V3.0.1（2026-09-24）
 
 **修复**
-- 文件名含全角竖线 `｜`、emoji 等特殊字符时，`.part` 临时文件无法创建（报 `Error: unable to open for writing`）——yt-dlp 参数新增 `--windowsfilenames`，由 yt-dlp 统一清理跨平台非法字符
+- 文件名含全角竖线 `｜`、emoji 等特殊字符时，`.part` 临时文件无法创建（报 `Error: unable to open for writing`）——新增 yt-dlp 参数意为「清理跨平台非法字符」（⚠️ 该参数名拼写错误，且未做端到端验证就发版，**导致此版本实际不可用**，已在 V3.0.2 修正）
 
 ### V3.0.0（2026-09-23）
 

@@ -25,7 +25,7 @@ COOKIE_BACKUP = COOKIES_FILE.with_name(COOKIES_FILE.name + ".bak")
 NODE_PATH = os.environ.get("NODE_PATH", "")
 HISTORY_FILE = DOWNLOAD_DIR / ".history.json"
 
-VERSION = "3.0.1"
+VERSION = "3.0.2"
 
 # Cookie 上传限制：正常 cookies.txt 只有几 KB，1MB 足够且能挡住异常大文件
 MAX_COOKIE_SIZE = 1024 * 1024
@@ -69,7 +69,7 @@ def _yt_dlp_cmd() -> str:
 
 
 def _base_args() -> list[str]:
-    args = [_yt_dlp_cmd(), "--no-warnings", "--newline", "--no-color", "--windowsfilenames"]
+    args = [_yt_dlp_cmd(), "--no-warnings", "--newline", "--no-color", "--windows-filenames"]
     if COOKIES_FILE.exists():
         args += ["--cookies", str(COOKIES_FILE)]
     if NODE_PATH:

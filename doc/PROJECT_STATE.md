@@ -1,7 +1,7 @@
 # 项目状态 / 交接文档
 
 > 项目：YouTube 下载器（ytdl-app）
-> 当前版本：**V3.0.1**（2026-09-24）
+> 当前版本：**V3.0.2**（2026-09-24）
 > 署名：by Mr lin
 
 ---
@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本号 | 3.0.1 |
+| 版本号 | 3.0.2 |
 | 代码位置 | `e:\work\ytdl-app` |
 | 镜像 | `ytdl-app:latest`（WSL `lxsyzd` 内） |
 | 访问地址 | http://localhost:8765 |
@@ -19,13 +19,13 @@
 | 桌面工具版本 | 1.0.0（`tools/cookie-exporter`，独立版本号，见 2.4） |
 
 **版本号三处一致性校验**：
-- 后端 `app/main.py` 第 28 行 `VERSION = "3.0.1"`
-- 页面 footer `V3.0.1 · by Mr lin`
-- 本文档 / README.md / DESIGN.md 均标注 V3.0.1
+- 后端 `app/main.py` 第 28 行 `VERSION = "3.0.2"`
+- 页面 footer `V3.0.2 · by Mr lin`（实测页面 HTML：`<footer>V3.0.2  ·  by Mr lin</footer>`）
+- 本文档 / README.md / DESIGN.md / DEPLOY.md 均标注 V3.0.2
 
 ---
 
-## 二、已完成功能（V3.0.1）
+## 二、已完成功能（V3.0.2）
 
 ### 2.1 V3 本轮重构
 | 功能 | 实现位置 | 验证方式 |
@@ -76,9 +76,9 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 
 **根因**：标题含 emoji `🔊` 与全角竖线 `｜`（U+FF5C），yt-dlp 默认输出模板 `%(title)s.%(ext)s` 未做跨平台字符清理，导致临时分片文件路径解析异常
 
-**修复**：`_base_args()` 新增 `--windowsfilenames`（[main.py](file:///e:/ytdl-app/app/main.py#L72)），由 yt-dlp 统一清理跨平台非法字符，保留中文与 ASCII 可读性
+**修复**：`_base_args()` 新增「跨平台文件名清理」参数——但代码里写作 `--windowsfilenames`（⚠️ **拼写错误**，yt-dlp 的正确选项名是 `--windows-filenames`），直接导致 V3.0.1 不可用，已在 2.5 修正
 
-**验证状态**：**待 NAS 实测**（本轮按决策未在本地做真实下载验证）
+**验证状态**：**未做任何端到端验证即发版**（本轮按原决策跳过了本地实测，仅改代码与文档）。事后证明这是 V3.0.1 完全不可用的直接原因，见 2.5 与踩坑 #15
 
 ### 2.4 桌面工具：Cookie 导出器（`tools/cookie-exporter`，独立版本 V1.0.0）
 
@@ -105,6 +105,31 @@ exe 启动   -> 窗口 1.9 秒出现，下拉框/按钮/进度条/署名/图标�
 落盘位置   -> F:\UserFiles\DeskTop\cookies.txt（用户手动选择）
 产物       -> 单文件 exe，19,648,087 字节
 ```
+
+### 2.5 V3.0.2 紧急修复（V3.0.1 参数名拼写错误导致服务不可用）
+
+**现象**：网页端解析报 `⚠ yt-dlp: error: no such option: --windowsfilenames`，任何链接都无法解析。
+
+**根因**：`_base_args()`（[main.py](file:///e:/ytdl-app/app/main.py#L71-L80)）把 yt-dlp 的选项名写成了 `--windowsfilenames`，**正确名称是 `--windows-filenames`**（带连字符）。yt-dlp 遇到不认识的选项立即报错退出。
+
+**影响面**：`_base_args()` 是 probe / download / Cookie 验证三处共用的参数构建函数，因此**解析、下载、Cookie 热上传全部失效**——不只是解析。
+
+**修复**：选项名更正为 `--windows-filenames`（[main.py](file:///e:/ytdl-app/app/main.py#L72)），版本号升至 **3.0.2**（六处同步：后端 `VERSION` / 页面 footer / README / DESIGN / PROJECT_STATE / DEPLOY）。
+
+**实测证据（2026-09-24，容器重建后）**：
+```
+version     -> {"ok":true,"version":"3.0.2"}
+页面 footer  -> <footer>V3.0.2  ·  by Mr lin</footer>
+probe 普通   -> {"duration":213,"title":"Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)","uploader":"Rick Astley"}
+probe 特殊   -> {"duration":294,"title":"Deep Conscious Dub 🔊 Heavy Bass Reggae ｜ Roots Meditation, Positive Energy & Deep Bass Vibes"}
+download    -> task 19e4493bd4ba：status done、progress 100%、speed 2.08MiB/s
+file        -> Deep Conscious Dub 🔊 Heavy Bass Reggae ｜ ... [MTwRIug5LlU].mp3（9,143,012 字节），无 .part 写入错误
+容器选项自检 -> yt-dlp --help 中 --windows-filenames 命中 1 处
+```
+
+**遗留待确认**：`--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |`，均为半角）；emoji `🔊` 与全角 `｜`（U+FF5C）不属于非法字符，实测文件名中原样保留。因此 **NAS 上原始的「.part 写入失败」是否真由该参数解决，仍需 NAS 实测**——本地 WSL 的 NTFS 挂载（9p）无法复现 NAS 文件系统的行为。
+
+**验证状态**：本机端到端已通过 ✅；NAS 场景待实测 🔄。
 
 ---
 
@@ -151,7 +176,7 @@ exe 启动   -> 窗口 1.9 秒出现，下拉框/按钮/进度条/署名/图标�
 - **现象**：NAS 下载标题含 `🔊`、全角竖线 `｜` 的视频，报 `ERROR: unable to open for writing: [Errno 2] No such file or directory: '/downloads/xxx.f399.mp4.part'`；同目录普通文件名下载正常
 - **排查**：容器内 `ls -la /downloads` 显示目录存在、属主 `1000:1001`、且已有 64MB 文件写入成功 → 排除挂载与权限问题，锁定文件名本身
 - **根因**：yt-dlp 默认输出模板 `%(title)s.%(ext)s` 未做跨平台字符清理，全角竖线 `｜`（U+FF5C）等字符使临时分片文件路径解析异常
-- **修复**：`_base_args()` 参数列表新增 `--windowsfilenames`
+- **修复**：`_base_args()` 参数列表新增文件名清理参数（⚠️ 当时写作 `--windowsfilenames`，**拼写错误**，见踩坑 #15；V3.0.2 已更正为 `--windows-filenames`）
 - **教训**：面向 NAS / 跨平台部署的下载器必须显式声明文件名清理策略，不能假设目标文件系统能接受任意字符
 
 ### #8 子线程直接操作 Tkinter 控件导致崩溃（桌面工具）
@@ -195,6 +220,19 @@ exe 启动   -> 窗口 1.9 秒出现，下拉框/按钮/进度条/署名/图标�
 - **根因**：`SetForegroundWindow` 常被系统限制而失效；`CopyFromScreen` 抓的是屏幕像素，窗口未置顶或正处于重绘瞬间就会得到空白
 - **修复**：用 `PrintWindow(hwnd, hdc, 2)`（`PW_RENDERFULLCONTENT`）直接让窗口把自己画到目标 DC，不依赖窗口是否在前台
 - **教训**：窗口取证不要依赖系统前台策略，直接从窗口自身渲染结果取图
+
+### #15 yt-dlp 参数名拼写错误 + 未做端到端验证就发版，导致整条链路失效（最高优先级教训）
+- **现象**：网页端任何链接解析都报 `⚠ yt-dlp: error: no such option: --windowsfilenames`；V3.0.1 镜像已推 ACR，**线上完全不可用**
+- **根因**：两层错误叠加
+  ① **选项名写错**：yt-dlp 的正确写法是 `--windows-filenames`（带连字符），代码写成 `--windowsfilenames`，yt-dlp 遇到未知选项立即报错退出
+  ② **发版前未验证**：只改了代码与文档，**一次真实解析/下载都没跑**，错误因此逃过所有检查
+- **影响面**：`_base_args()` 被 probe / download / Cookie 热上传三处共用，**三处全部失效**——一处拼写错误等于整个服务停摆
+- **修复**：更正为 `--windows-filenames`，升版 V3.0.2；容器重建后实测 version / probe（普通 + 特殊字符标题）/ 真实下载 MP3 全部通过
+- **教训**：
+  1. **外部命令行工具的选项名必须核实**（`--help` 或官方文档），不能凭印象拼写。带连字符的长选项尤其容易写错
+  2. **涉及外部命令调用的改动，发版前必须跑一次真实调用**。「只改代码不验证」等于把风险直接推给线上，本次代价是整版不可用
+  3. **公共参数构建函数的影响面是全量的**，改 `_base_args()` 这类函数要优先验证，它是所有链路的必经之路
+  4. 验证时机比验证方式更重要——本机一次 curl 就能拦住的问题，拖到了线上才发现
 
 ---
 
@@ -301,7 +339,7 @@ docker exec -it ytdl-app bash
 
 ### 导出镜像给 NAS / 服务器
 ```bash
-docker save ytdl-app:latest | gzip > ytdl-app-v3.0.1.tar.gz
+docker save ytdl-app:latest | gzip > ytdl-app-v3.0.2.tar.gz
 ```
 
 ### 推送到阿里云 ACR
@@ -311,11 +349,11 @@ docker buildx build --no-cache --provenance=false \
     --platform linux/amd64 -t ytdl-app:latest .
 
 # 打 tag
-docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
+docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
 docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 推送
-docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
 docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 反向验证（按 digest 拉取，跳过本机 tag 缓存）
@@ -324,21 +362,21 @@ docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返
 
 ### NAS / 服务器部署
 ```bash
-# 上传 ytdl-app-v3.0.1.tar.gz 和 docker-compose.server.yml 到服务器
+# 上传 ytdl-app-v3.0.2.tar.gz 和 docker-compose.server.yml 到服务器
 cd /opt/ytdl
 mkdir -p downloads config
-gunzip -c ytdl-app-v3.0.1.tar.gz | docker load
+gunzip -c ytdl-app-v3.0.2.tar.gz | docker load
 docker compose -f docker-compose.server.yml up -d
 ```
 
 ### 版本号递增流程
-1. 改 `app/main.py` 的 `VERSION = "3.0.1"`
+1. 改 `app/main.py` 的 `VERSION = "3.0.2"`
 2. 改 `templates/index.html` 的 footer 显示版本
 3. 改 `README.md` / `DESIGN.md` / `PROJECT_STATE.md` 中的版本号
 4. `docker compose up -d --build`
 5. 跑回归测试
 6. `git commit` 中文提交信息
-7. 导出镜像 `ytdl-app-v3.0.1.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
+7. 导出镜像 `ytdl-app-v3.0.2.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
 8. 推送到 ACR：`docker buildx build --no-cache --provenance=false ...`（见上一节「推送到阿里云 ACR」）
 
 ### 桌面工具打包（tools/cookie-exporter）
@@ -381,7 +419,8 @@ tools\cookie-exporter\.venv\Scripts\python tools\cookie-exporter\src\main.py
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
-| V3.0.1 | 2026-09-24 | 修复特殊字符文件名下载失败（`--windowsfilenames`，踩坑 #7）；项目目录重组（`doc/` `test/` `deploy/` `tools/` `scripts/`）；镜像推送 ACR（v3.0.1 + latest） |
+| V3.0.2 | 2026-09-24 | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` → `--windows-filenames`，恢复解析 / 下载 / Cookie 验证三条链路；版本号六处同步；容器重建后完成真实下载取证（MP3 9,143,012 字节）；新增踩坑 #15（参数名拼写 + 未验证发版） |
+| V3.0.1 | 2026-09-24 | 修复特殊字符文件名下载失败（新增文件名清理参数，**参数名拼写错误**，见踩坑 #7/#15）；项目目录重组（`doc/` `test/` `deploy/` `tools/` `scripts/`）；镜像推送 ACR（v3.0.1 + latest）⚠️ **该版本实际不可用** |
 | 桌面工具 V1.0.0 | 2026-09-24 | 新增 `tools/cookie-exporter`：浏览器 Cookie 导出器（Tkinter 界面 + yt-dlp），单文件 exe 19.6 MB，目标机器免装 Python；新增踩坑 #8~#14（Tkinter 线程模型、验证三态、凭据最小化、PowerShell BOM、PyInstaller specpath、单文件双进程、PrintWindow 取证）；清理一次性调试脚本与中间产物，保留 `build/build.ps1` |
 | V3.0.0 (ACR) | 2026-09-23 | 镜像推送至阿里云 ACR（v3.0.0 + latest），补充 DEPLOY.md、README 部署章节、踩坑 #6（buildx provenance） |
 | V3.0.0 | 2026-09-23 | 本文件首次建立，同步 V3 全部改动与踩坑记录 |
