@@ -1,0 +1,12 @@
+services:
+  ytdl:
+    image: ytdl-app:latest
+    container_name: ytdl-app
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - /opt/ytdl/downloads:/downloads        # 服务器下载目录
+      - /opt/ytdl/config:/config              # cookies.txt 放这里
+    environment:
+      - TZ=Asia/Shanghai

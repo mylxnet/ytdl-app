@@ -1,0 +1,24 @@
+# --- 敏感文件（绝不能入库）---
+config/cookies.txt
+config/cookies.txt.*
+*.env
+
+# --- Python 产物 ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- 调试输出 ---
+*.log
+shots/
+
+# --- Docker 镜像导出包（体积巨大）---
+ytdl-app-*.tar.gz
+*.tar.gz
+
+# --- 系统 / 编辑器 ---
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube 下载器 V{{ version }} — by Mr lin</title>
+<style>
+:root { --bg:#0f1115; --card:#181c24; --line:#262c38; --txt:#e8ecf2; --dim:#8b94a7;
+        --acc:#3b82f6; --ok:#22c55e; --err:#ef4444; --warn:#f59e0b; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--txt); font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif;
+       padding:28px 16px 40px; max-width:900px; margin:0 auto; }
+h1 { font-size:22px; margin-bottom:18px; letter-spacing:.5px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+input[type=url], input[type=file] { background:#0d0f13; border:1px solid var(--line); border-radius:8px;
+        color:var(--txt); padding:10px 14px; font-size:14px; }
+input[type=url] { flex:1; min-width:200px; font-size:15px; }
+input:focus { outline:none; border-color:var(--acc); }
+button { background:var(--acc); border:none; color:#fff; border-radius:8px; padding:10px 18px;
+         font-size:15px; cursor:pointer; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+button.ghost { background:transparent; border:1px solid var(--line); color:var(--dim); }
+button.danger { background:transparent; border:1px solid var(--line); color:var(--err); padding:5px 12px; font-size:13px; }
+button.mini { background:var(--acc); border:none; color:#fff; padding:5px 12px; font-size:13px; border-radius:6px; }
+button.mini.ghost { background:transparent; border:1px solid var(--line); color:var(--dim); }
+select { background:#0d0f13; color:var(--txt); border:1px solid var(--line); border-radius:8px;
+         padding:10px; font-size:14px; }
+.meta { display:flex; gap:14px; margin-top:14px; align-items:center; }
+.meta img { width:130px; border-radius:8px; background:#0d0f13; }
+.meta .t { font-weight:600; }
+.meta .d { color:var(--dim); font-size:13px; }
+.prog-wrap { background:#0d0f13; border-radius:6px; height:10px; margin-top:14px; overflow:hidden; }
+.prog { height:100%; width:0%; background:linear-gradient(90deg,var(--acc),#60a5fa); transition:width .8s; }
+.status { margin-top:8px; font-size:13px; color:var(--dim); word-break:break-word; }
+.status.ok { color:var(--ok); } .status.err { color:var(--err); } .status.warn { color:var(--warn); }
+/* 必须 !important：.countdown / .modal 的 display:flex 声明在 .hidden 之后，
+   同为单类选择器时后声明者胜出，会把 hidden 压掉，导致初始页面就显示
+   倒计时卡片与预览遮罩（实测踩坑）。 */
+.hidden { display:none !important; }
+table { width:100%; border-collapse:collapse; font-size:14px; }
+td, th { text-align:left; padding:9px 6px; border-bottom:1px solid var(--line); }
+tbody tr:hover { background:#1e2430; }
+td.sz, td.tm { color:var(--dim); white-space:nowrap; font-size:13px; }
+td.ops { white-space:nowrap; text-align:right; }
+h2 { font-size:16px; color:var(--dim); font-weight:500; margin-bottom:12px; display:flex;
+     align-items:center; gap:10px; }
+.pill { display:inline-block; background:#0d0f13; border:1px solid var(--line); color:var(--dim);
+       border-radius:99px; padding:1px 10px; font-size:12px; }
+/* 倒计时 */
+.countdown { display:flex; align-items:center; gap:14px; margin-top:14px; padding:12px 14px;
+             background:#0d0f13; border:1px solid var(--warn); border-radius:10px; }
+.cd-num { font-size:22px; font-weight:700; color:var(--warn); min-width:34px; }
+.cd-txt { font-size:14px; color:var(--dim); flex:1; }
+/* Cookie 上传 */
+.up-zone { border:1px dashed var(--line); border-radius:10px; padding:16px; text-align:center;
+           color:var(--dim); font-size:14px; }
+/* 预览弹窗 */
+.modal { position:fixed; inset:0; background:rgba(0,0,0,.82); display:flex; align-items:center;
+         justify-content:center; z-index:50; padding:20px; }
+.modal-box { background:var(--card); border:1px solid var(--line); border-radius:12px;
+             padding:14px; max-width:900px; width:100%; max-height:92vh; display:flex; flex-direction:column; }
+.modal-box video, .modal-box audio { width:100%; max-height:72vh; background:#000; border-radius:8px; }
+.modal-bar { display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+.modal-bar .fn { flex:1; font-size:13px; color:var(--dim); word-break:break-all; }
+/* 用法说明 */
+.help { font-size:13px; color:var(--dim); }
+.help li { margin-left:18px; margin-bottom:5px; }
+.help b { color:var(--txt); font-weight:600; }
+.help code { background:#0d0f13; border:1px solid var(--line); border-radius:4px; padding:1px 5px;
+             font-size:12px; color:#cbd5e1; }
+footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; letter-spacing:.4px; }
+</style>
+</head>
+<body>
+<h1>YouTube 下载器 <span class="pill">V{{ version }}</span> <span class="pill">1080p 默认</span></h1>
+
+<!-- 解析 + 自动下载 -->
+<div class="card">
+  <div class="row">
+    <input id="url" type="url" placeholder="粘贴 YouTube 视频链接（youtube.com/watch?v=... 或 youtu.be/...）" autofocus>
+    <select id="quality">
+      <option value="1080" selected>1080p MP4</option>
+      <option value="2160">4K (2160p)</option>
+      <option value="720">720p</option>
+      <option value="audio">仅音频 MP3</option>
+    </select>
+    <button id="probeBtn" onclick="probe()">解析</button>
+  </div>
+  <div class="status err" id="probeErr"></div>
+  <div id="meta" class="meta hidden">
+    <img id="thumb" alt="封面">
+    <div>
+      <div class="t" id="title"></div>
+      <div class="d" id="dur"></div>
+    </div>
+  </div>
+
+  <!-- 倒计时自动下载 -->
+  <div id="cdCard" class="countdown hidden">
+    <span class="cd-num" id="cdNum">3</span>
+    <span class="cd-txt" id="cdTxt">即将自动开始下载</span>
+    <button id="cdCancel" onclick="cancelCountdown()">取消</button>
+  </div>
+</div>
+
+<!-- 下载进度 -->
+<div class="card hidden" id="taskCard">
+  <h2>下载任务 <span class="pill" id="taskQ"></span></h2>
+  <div class="prog-wrap"><div class="prog" id="prog"></div></div>
+  <div class="status" id="taskStatus">排队中…</div>
+</div>
+
+<!-- 已下载文件 -->
+<div class="card">
+  <h2>已下载文件 <span class="pill" id="fileCount">0</span>
+    <button class="mini ghost" style="margin-left:auto;" onclick="loadFiles()">刷新</button>
+  </h2>
+  <table>
+    <thead><tr><th>文件名</th><th class="sz">大小</th><th class="tm">时间</th><th class="ops">操作</th></tr></thead>
+    <tbody id="files"><tr><td colspan="4" style="color:var(--dim)">加载中…</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Cookie 上传 -->
+<div class="card">
+  <h2>上传 Cookie <span class="pill">Cookie 失效时用</span></h2>
+  <div class="up-zone">
+    <input type="file" id="cookieFile" accept=".txt,text/plain">
+    <div style="margin-top:10px;">Netscape 格式 cookies.txt（本机 <code style="font-size:12px;">刷新Cookie.bat</code> 导出）。上传后自动验证，无需重启服务。</div>
+  </div>
+  <div class="status" id="cookieMsg"></div>
+</div>
+
+<!-- 用法说明 -->
+<div class="card">
+  <h2>用法说明</h2>
+  <ol class="help">
+    <li><b>下载</b>：粘贴 YouTube 链接回车（或点「解析」），显示封面与标题后 <b>倒计时 3 秒自动下载</b>，期间可点「取消」。</li>
+    <li><b>画质</b>：解析前选画质，默认 1080p；4K 体积较大（约 1.6GB/40 分钟），仅音频导出 MP3。</li>
+    <li><b>预览</b>：文件列表点 <b>[预览]</b> 在页内播放，支持拖动进度。</li>
+    <li><b>保存到自己电脑</b>：点 <b>[下载]</b>，浏览器弹出「另存为」，选择本地目录即可（文件已存在服务器磁盘，下载是把它拷回本机）。</li>
+    <li><b>删除</b>：点 <b>[删除]</b> 并确认，从服务器磁盘移除该文件。</li>
+    <li><b>Cookie 失效</b>：所有视频都报 <code>Sign in to confirm you're not a bot</code> 时，用本机浏览器登录 youtube.com 导出 cookies.txt，在本页「上传 Cookie」即可，<b>无需重启</b>。</li>
+    <li><b>队列串行</b>：同时只下载 1 个任务，避免触发 YouTube 风控；下载中刷新页面不影响任务继续。</li>
+  </ol>
+</div>
+
+<footer>V{{ version }}  ·  by Mr lin</footer>
+
+<!-- 预览弹窗 -->
+<div class="modal hidden" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div id="player"></div>
+    <div class="modal-bar">
+      <span class="fn" id="modalName"></span>
+      <button class="mini" data-act="dl-current">下载</button>
+      <button class="ghost" data-act="close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentUrl = "", currentTitle = "", es = null, cdTimer = null, currentFile = null;
+
+const fmtSize = n => n > 1e9 ? (n/1e9).toFixed(2)+" GB" : n > 1e6 ? (n/1e6).toFixed(1)+" MB" : (n/1e3).toFixed(0)+" KB";
+const fmtDur = s => { s = +s||0; const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=Math.round(s%60);
+  return (h? h+":" : "") + String(m).padStart(2,"0") + ":" + String(x).padStart(2,"0"); };
+const fmtTime = ts => new Date(ts*1000).toLocaleString("zh-CN", {month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+
+// ---------------- 解析 + 倒计时自动下载 ----------------
+async function probe() {
+  const url = document.getElementById("url").value.trim();
+  const err = document.getElementById("probeErr");
+  err.textContent = "";
+  if (!url) return;
+  const btn = document.getElementById("probeBtn");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/probe", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({url})});
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "解析失败");
+    currentUrl = url; currentTitle = j.title;
+    document.getElementById("meta").classList.remove("hidden");
+    document.getElementById("thumb").src = j.thumbnail;
+    document.getElementById("title").textContent = j.title;
+    document.getElementById("dur").textContent = (j.uploader? j.uploader+" · " : "") + fmtDur(j.duration);
+    startCountdown();
+  } catch(e) { err.textContent = "⚠ " + e.message; }
+  finally { btn.disabled = false; }
+}
+
+function startCountdown() {
+  let n = 3;
+  const card = document.getElementById("cdCard");
+  card.classList.remove("hidden");
+  document.getElementById("cdNum").textContent = n;
+  document.getElementById("cdTxt").textContent = "即将自动开始下载 · 取消可中止";
+  clearInterval(cdTimer);
+  cdTimer = setInterval(() => {
+    n -= 1;
+    if (n <= 0) { clearInterval(cdTimer); card.classList.add("hidden"); startDl(); return; }
+    document.getElementById("cdNum").textContent = n;
+  }, 1000);
+}
+
+function cancelCountdown() {
+  clearInterval(cdTimer);
+  document.getElementById("cdCard").classList.add("hidden");
+  const err = document.getElementById("probeErr");
+  err.className = "status warn";
+  err.textContent = "已取消自动下载";
+}
+
+async function startDl() {
+  const quality = document.getElementById("quality").value;
+  const r = await fetch("/api/download", {method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({url: currentUrl, quality, title: currentTitle})});
+  const j = await r.json();
+  if (!j.ok) { alert(j.error); return; }
+  document.getElementById("taskCard").classList.remove("hidden");
+  document.getElementById("taskQ").textContent = quality;
+  listen(j.task_id);
+}
+
+function listen(tid) {
+  if (es) es.close();
+  es = new EventSource("/api/stream/" + tid);
+  es.onmessage = ev => {
+    const s = JSON.parse(ev.data);
+    document.getElementById("prog").style.width = (s.progress||0) + "%";
+    let txt = "";
+    if (s.status === "queued") txt = "排队中…";
+    else if (s.status === "downloading") txt = `下载中 ${(s.progress||0).toFixed(1)}%  ${s.speed||""}  剩余 ${s.eta||""}`;
+    else if (s.status === "done") { txt = "✓ 下载完成"; es.close(); loadFiles(); }
+    else if (s.status === "error") { txt = "✗ 失败：" + (s.error||"未知错误"); es.close(); }
+    else { txt = "任务已结束"; es.close(); }
+    const el = document.getElementById("taskStatus");
+    el.textContent = txt;
+    el.className = "status " + (s.status==="done"?"ok":s.status==="error"?"err":"");
+  };
+}
+
+// ---------------- 文件列表 ----------------
+async function loadFiles() {
+  const r = await fetch("/api/files");
+  const j = await r.json();
+  document.getElementById("fileCount").textContent = (j.items||[]).length;
+  const rows = (j.items||[]).map(f =>
+    `<tr>
+       <td>${esc(f.name)}</td>
+       <td class="sz">${fmtSize(f.size)}</td>
+       <td class="tm">${fmtTime(f.mtime)}</td>
+       <td class="ops">
+         <button class="mini" data-act="preview" data-name="${esc(f.name)}">预览</button>
+         <button class="mini" data-act="save" data-name="${esc(f.name)}">下载</button>
+         <button class="danger" data-act="del" data-name="${esc(f.name)}">删除</button>
+       </td>
+     </tr>`).join("");
+  document.getElementById("files").innerHTML = rows
+    || `<tr><td colspan="4" style="color:var(--dim)">还没有文件，粘贴链接开始下载</td></tr>`;
+}
+
+// ---------------- 预览 / 下载 / 删除 ----------------
+function preview(name) {
+  currentFile = name;
+  document.getElementById("modalName").textContent = name;
+  const box = document.getElementById("player");
+  const isAudio = /\.(mp3|m4a|aac|flac|wav|ogg)$/i.test(name);
+  const url = "/api/preview?name=" + encodeURIComponent(name);
+  box.innerHTML = isAudio
+    ? `<audio controls autoplay src="${esc(url)}"></audio>`
+    : `<video controls autoplay src="${esc(url)}"></video>`;
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function downloadCurrent() {
+  if (currentFile) window.location = "/api/download-file?name=" + encodeURIComponent(currentFile);
+}
+
+function saveLocal(name) {
+  window.location = "/api/download-file?name=" + encodeURIComponent(name);
+}
+
+async function delFile(name) {
+  if (!confirm("确定从服务器磁盘删除？\n\n" + name)) return;
+  const r = await fetch("/api/file?name=" + encodeURIComponent(name), {method:"DELETE"});
+  const j = await r.json();
+  if (!j.ok) { alert("删除失败：" + (j.error||"")); return; }
+  closeModal();
+  loadFiles();
+}
+
+function closeModal() {
+  document.getElementById("player").innerHTML = "";
+  document.getElementById("modal").classList.add("hidden");
+  currentFile = null;
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// 事件委托：列表与弹窗内的操作按钮都走这里，避免内联 onclick 携带文件名
+document.addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const act = b.dataset.act, name = b.dataset.name || currentFile;
+  if (act === "preview") preview(name);
+  else if (act === "save") saveLocal(name);
+  else if (act === "del") delFile(name);
+  else if (act === "dl-current") downloadCurrent();
+  else if (act === "close") closeModal();
+});
+
+// ---------------- Cookie 上传 ----------------
+document.getElementById("cookieFile").addEventListener("change", async function() {
+  if (!this.files || !this.files[0]) return;
+  const msg = document.getElementById("cookieMsg");
+  msg.className = "status";
+  msg.textContent = "上传中，正在验证 Cookie 是否有效…";
+  const fd = new FormData();
+  fd.append("file", this.files[0]);
+  try {
+    const r = await fetch("/api/cookie/upload", {method:"POST", body:fd});
+    const j = await r.json();
+    if (!j.ok) { msg.className = "status err"; msg.textContent = "✗ " + (j.error||"上传失败"); }
+    else {
+      msg.className = "status ok";
+      msg.textContent = `✓ 上传成功（${j.count} 条 Cookie），验证视频：${j.title}`;
+      this.value = "";
+    }
+  } catch(e) { msg.className = "status err"; msg.textContent = "✗ " + e.message; }
+});
+
+// ---------------- 初始化 ----------------
+document.getElementById("url").addEventListener("keydown", e => { if (e.key === "Enter") probe(); });
+loadFiles();
+</script>
+</body>
+</html>
