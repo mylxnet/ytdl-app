@@ -18,7 +18,7 @@ docker rm ytdl-app 2>&1 || true
 echo ""
 echo "=== 2. 清理旧镜像 ==="
 docker rmi ytdl-app:latest 2>/dev/null || true
-docker rmi "$REG:v3.0.0" 2>/dev/null || true
+docker rmi "$REG:v3.0.1" 2>/dev/null || true
 docker rmi "$REG:latest" 2>/dev/null || true
 
 echo ""
@@ -47,15 +47,15 @@ curl -s http://localhost:8765/api/version || true
 
 echo ""
 echo "=== 6. 打 ACR tag ==="
-docker tag ytdl-app:latest "$REG:v3.0.0"
+docker tag ytdl-app:latest "$REG:v3.0.1"
 docker tag ytdl-app:latest "$REG:latest"
 docker images "$REG" --format '  {{.Repository}}:{{.Tag}}  {{.Size}}  {{.ID}}'
 
 echo ""
-echo "=== 7. 推送 v3.0.0 ==="
-date +"%H:%M:%S  start v3.0.0"
-docker push "$REG:v3.0.0" 2>&1 | tail -30
-date +"%H:%M:%S  end v3.0.0"
+echo "=== 7. 推送 v3.0.1 ==="
+date +"%H:%M:%S  start v3.0.1"
+docker push "$REG:v3.0.1" 2>&1 | tail -30
+date +"%H:%M:%S  end v3.0.1"
 
 echo ""
 echo "=== 8. 推送 latest ==="

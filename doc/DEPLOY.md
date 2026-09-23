@@ -1,6 +1,6 @@
 # YouTube 下载器 — 部署文档
 
-> 版本：**V3.0.0**（2026-09-23）  
+> 版本：**V3.0.1**（2026-09-24）  
 > 署名：by Mr lin  
 > 目标环境：家用 NAS（Docker / Docker Compose）
 
@@ -20,8 +20,8 @@
 # 1. 建工作目录
 mkdir -p ~/ytdl-app/downloads && cd ~/ytdl-app
 
-# 2. 拉镜像（v3.0.0 = 固定版本；latest = 最新）
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+# 2. 拉镜像（v3.0.1 = 固定版本；latest = 最新）
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 
 # 3. 起容器（下面命令见「完整命令」章节）
 docker run -d \
@@ -31,7 +31,7 @@ docker run -d \
   -v ~/ytdl-app/downloads:/downloads \
   -v ~/ytdl-app/config:/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 ```
 
 ### 访问
@@ -56,7 +56,7 @@ docker run -d \
   -v ~/ytdl-app/downloads:/downloads \
   -v ~/ytdl-app/config:/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 ```
 
 ### 2.2 Docker Compose 部署（推荐）
@@ -66,7 +66,7 @@ docker run -d \
 ```yaml
 services:
   ytdl:
-    image: registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+    image: registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
     container_name: ytdl-app
     restart: unless-stopped
     mem_limit: 2g
@@ -93,16 +93,16 @@ docker compose up -d
 1. 在联网机器上 `docker pull` + `docker save`：
 
 ```bash
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0 \
-  -o ytdl-app-v3.0.0.tar.gz  # 约 400MB 压缩后
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1 \
+  -o ytdl-app-v3.0.1.tar.gz  # 约 400MB 压缩后
 ```
 
 2. 拷到 NAS 后加载：
 
 ```bash
-docker load -i ytdl-app-v3.0.0.tar.gz
-docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0 ...
+docker load -i ytdl-app-v3.0.1.tar.gz
+docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1 ...
 ```
 
 ---
@@ -179,7 +179,7 @@ docker image prune -f
 ```bash
 # 服务是否活着
 curl -s http://localhost:8765/api/version
-# 期望：{"ok":true,"version":"3.0.0"}
+# 期望：{"ok":true,"version":"3.0.1"}
 
 # 磁盘空间（下载大文件必备）
 df -h ~/ytdl-app/downloads
@@ -226,9 +226,9 @@ docker compose up -d    # 或者用第一节的一键命令
 ### 回滚
 
 ```bash
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 docker stop ytdl-app && docker rm ytdl-app
-docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0 ...
+docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1 ...
 ```
 
 数据（视频、Cookie）都在宿主机挂载目录，升级/回滚不丢。
@@ -240,7 +240,7 @@ docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0 ...
 | 字段 | 值 |
 |---|---|
 | 仓库 | `registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app` |
-| 当前版本 | `v3.0.0` |
+| 当前版本 | `v3.0.1` |
 | 镜像大小 | 约 1.2 GB（含 Node/ffmpeg/yt-dlp） |
 | 基础镜像 | `python:3.12-slim` |
 | 端口 | `8765` |

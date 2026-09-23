@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.0** · by Mr lin
+**版本：V3.0.1** · by Mr lin
 
 ---
 
@@ -50,22 +50,22 @@ docker compose up -d --build
 
 ```bash
 mkdir -p downloads config
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 docker run -d --name ytdl-app --restart unless-stopped \
   -p 8765:8765 \
   -v "$PWD/downloads":/downloads \
   -v "$PWD/config":/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 ```
 
 **离线部署（NAS 无公网）**
 
 ```bash
 # 联网机器导出
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0 -o ytdl-app-v3.0.0.tar
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1 -o ytdl-app-v3.0.1.tar
 # 拷到 NAS 后加载
-docker load -i ytdl-app-v3.0.0.tar
+docker load -i ytdl-app-v3.0.1.tar
 ```
 
 详见 [DEPLOY.md](./doc/DEPLOY.md)。
@@ -197,6 +197,11 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 ---
 
 ## 更新日志
+
+### V3.0.1（2026-09-24）
+
+**修复**
+- 文件名含全角竖线 `｜`、emoji 等特殊字符时，`.part` 临时文件无法创建（报 `Error: unable to open for writing`）——yt-dlp 参数新增 `--windowsfilenames`，由 yt-dlp 统一清理跨平台非法字符
 
 ### V3.0.0（2026-09-23）
 

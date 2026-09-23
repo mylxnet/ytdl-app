@@ -1,7 +1,7 @@
 # 项目状态 / 交接文档
 
 > 项目：YouTube 下载器（ytdl-app）
-> 当前版本：**V3.0.0**（2026-09-23）
+> 当前版本：**V3.0.1**（2026-09-24）
 > 署名：by Mr lin
 
 ---
@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本号 | 3.0.0 |
+| 版本号 | 3.0.1 |
 | 代码位置 | `e:\work\ytdl-app` |
 | 镜像 | `ytdl-app:latest`（WSL `lxsyzd` 内） |
 | 访问地址 | http://localhost:8765 |
@@ -18,13 +18,13 @@
 | Cookie 位置 | `./config/cookies.txt` |
 
 **版本号三处一致性校验**：
-- 后端 `app/main.py` 第 28 行 `VERSION = "3.0.0"`
-- 页面 footer `V3.0.0 · by Mr lin`
-- 本文档 / README.md / DESIGN.md 均标注 V3.0.0
+- 后端 `app/main.py` 第 28 行 `VERSION = "3.0.1"`
+- 页面 footer `V3.0.1 · by Mr lin`
+- 本文档 / README.md / DESIGN.md 均标注 V3.0.1
 
 ---
 
-## 二、已完成功能（V3.0.0）
+## 二、已完成功能（V3.0.1）
 
 ### 2.1 V3 本轮重构
 | 功能 | 实现位置 | 验证方式 |
@@ -66,6 +66,19 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 - 预览弹窗可打开，`display:flex`，`video.readyState=4`，`paused=false`（正在播放）
 - 文件列表 4 行，预览 / 下载 / 删除按钮齐备
 
+### 2.3 V3.0.1 修复（特殊字符文件名下载失败）
+
+**现象**：NAS 上该视频下载报错，同目录其他普通文件名均正常——
+`ERROR: unable to open for writing: [Errno 2] No such file or directory: '/downloads/Deep Conscious Dub 🔊 Heavy Bass Reggae ｜ ... [MTwRIug5LlU].f399.mp4.part'`
+
+**排查过程**：容器内 `ls -la /downloads` 确认目录存在、属主 `1000:1001`、同目录已有 64MB 文件写入成功 → 排除挂载失败与权限问题，锁定为文件名本身
+
+**根因**：标题含 emoji `🔊` 与全角竖线 `｜`（U+FF5C），yt-dlp 默认输出模板 `%(title)s.%(ext)s` 未做跨平台字符清理，导致临时分片文件路径解析异常
+
+**修复**：`_base_args()` 新增 `--windowsfilenames`（[main.py](file:///e:/ytdl-app/app/main.py#L72)），由 yt-dlp 统一清理跨平台非法字符，保留中文与 ASCII 可读性
+
+**验证状态**：**待 NAS 实测**（本轮按决策未在本地做真实下载验证）
+
 ---
 
 ## 三、踩坑记录
@@ -106,6 +119,13 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 - **无效方案**：`docker save ytdl-app:latest -o tar && docker load -i tar` 重打包。tar 内保留完整 OCI 元数据，push 依然报同一错误。镜像 ID 不变（`f27cc96bdc24`），说明 attestation 就是原产物的一部分
 - **修复**：`docker buildx build --no-cache --provenance=false --platform linux/amd64 -t ytdl-app:latest .` 禁用 provenance 重新构建。产物变单 manifest，push 成功
 - **教训**：所有面向阿里云 ACR 的构建必须显式加 `--provenance=false`，并固化到发布脚本；不要依赖 `docker compose build` 默认行为
+
+### #7 全角竖线 `｜` 等特殊字符导致 `.part` 文件写入失败
+- **现象**：NAS 下载标题含 `🔊`、全角竖线 `｜` 的视频，报 `ERROR: unable to open for writing: [Errno 2] No such file or directory: '/downloads/xxx.f399.mp4.part'`；同目录普通文件名下载正常
+- **排查**：容器内 `ls -la /downloads` 显示目录存在、属主 `1000:1001`、且已有 64MB 文件写入成功 → 排除挂载与权限问题，锁定文件名本身
+- **根因**：yt-dlp 默认输出模板 `%(title)s.%(ext)s` 未做跨平台字符清理，全角竖线 `｜`（U+FF5C）等字符使临时分片文件路径解析异常
+- **修复**：`_base_args()` 参数列表新增 `--windowsfilenames`
+- **教训**：面向 NAS / 跨平台部署的下载器必须显式声明文件名清理策略，不能假设目标文件系统能接受任意字符
 
 ---
 
@@ -212,7 +232,7 @@ docker exec -it ytdl-app bash
 
 ### 导出镜像给 NAS / 服务器
 ```bash
-docker save ytdl-app:latest | gzip > ytdl-app-v3.0.0.tar.gz
+docker save ytdl-app:latest | gzip > ytdl-app-v3.0.1.tar.gz
 ```
 
 ### 推送到阿里云 ACR
@@ -222,11 +242,11 @@ docker buildx build --no-cache --provenance=false \
     --platform linux/amd64 -t ytdl-app:latest .
 
 # 打 tag
-docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 推送
-docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.1
 docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 反向验证（按 digest 拉取，跳过本机 tag 缓存）
@@ -235,21 +255,21 @@ docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返
 
 ### NAS / 服务器部署
 ```bash
-# 上传 ytdl-app-v3.0.0.tar.gz 和 docker-compose.server.yml 到服务器
+# 上传 ytdl-app-v3.0.1.tar.gz 和 docker-compose.server.yml 到服务器
 cd /opt/ytdl
 mkdir -p downloads config
-gunzip -c ytdl-app-v3.0.0.tar.gz | docker load
+gunzip -c ytdl-app-v3.0.1.tar.gz | docker load
 docker compose -f docker-compose.server.yml up -d
 ```
 
 ### 版本号递增流程
-1. 改 `app/main.py` 的 `VERSION = "3.0.0"`
+1. 改 `app/main.py` 的 `VERSION = "3.0.1"`
 2. 改 `templates/index.html` 的 footer 显示版本
 3. 改 `README.md` / `DESIGN.md` / `PROJECT_STATE.md` 中的版本号
 4. `docker compose up -d --build`
 5. 跑回归测试
 6. `git commit` 中文提交信息
-7. 导出镜像 `ytdl-app-v3.0.0.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
+7. 导出镜像 `ytdl-app-v3.0.1.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
 8. 推送到 ACR：`docker buildx build --no-cache --provenance=false ...`（见上一节「推送到阿里云 ACR」）
 
 ---
@@ -271,6 +291,7 @@ docker compose -f docker-compose.server.yml up -d
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| V3.0.1 | 2026-09-24 | 修复特殊字符文件名下载失败（`--windowsfilenames`，踩坑 #7）；项目目录重组（`doc/` `test/` `deploy/` `tools/` `scripts/`）；镜像推送 ACR（v3.0.1 + latest） |
 | V3.0.0 (ACR) | 2026-09-23 | 镜像推送至阿里云 ACR（v3.0.0 + latest），补充 DEPLOY.md、README 部署章节、踩坑 #6（buildx provenance） |
 | V3.0.0 | 2026-09-23 | 本文件首次建立，同步 V3 全部改动与踩坑记录 |
 | V2.x | 2026-09-22 | 项目交接文档首次建立 |

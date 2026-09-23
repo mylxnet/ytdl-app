@@ -1,6 +1,6 @@
 # YouTube 下载器 — 设计方案 V3
 
-> 版本：V3.0.0（2026-09-23）
+> 版本：V3.0.1（2026-09-24）
 > 现状：V3 已上线并验证（Flask + yt-dlp + Docker，NAS 部署 / 浏览器访问 / 文件回传本机）
 > 本文档：完整设计方案 + 关键问题清单，作为后续演进与部署的依据
 > by Mr lin
@@ -229,6 +229,7 @@ cd /mnt/e/work/ytdl-app && docker compose up -d
 | V1（已完成） | 核心下载 + 自定义目录 + Docker 化 | ✅ |
 | V2（已规划未落地） | Cookie 健康自检 + 错误分类提示 + 进行中任务恢复 | ⏸ 被 V3 取代 |
 | **V3.0.0（已完成）** | **NAS 场景重构：删子目录 / 删开始按钮 / 倒计时自动下载 / 页内预览 / 下载回本机 / Cookie 热上传** | ✅ |
+| V3.0.1（已发版，待 NAS 验证） | 特殊字符文件名下载修复（`--windowsfilenames`）；项目目录结构重组 | 🔄 |
 | V4.0 | Cookie 健康横幅 + 失败自动重试 + 播放列表 + 访问密码 | 待排期 |
 | V4.x | 通知 + 磁盘预警 + 字幕 | 按需 |
 
@@ -239,3 +240,4 @@ cd /mnt/e/work/ytdl-app && docker compose up -d
 | 版本 | 日期 | 新增 | 优化 | 修复 | 调整 |
 |---|---|---|---|---|---|
 | V3.0.0 | 2026-09-23 | 倒计时 3 秒自动下载；页内 Range 预览；下载回本机（另存为）；Cookie 网页热上传（校验→备份→验证→回滚）；`/api/version` | 删除「开始下载」按钮与子目录选择，改单层平铺；事件委托替代内联 onclick；中文文件名走 RFC 5987 `filename*` | `_check_cookie_format` 列号错（`cols[6]` 取到值而非 cookie 名）；`_verify_cookie` 漏 `--remote-components ejs:github` 导致正常 Cookie 被误判失败；`.hidden` 被 `.countdown`/`.modal` 的 `display:flex` 覆盖需 `!important` | 下线 `/api/dirs`；删除文件统一走 `DELETE /api/file` |
+| V3.0.1 | 2026-09-24 | — | — | 文件名含全角竖线 `｜`、emoji 等特殊字符时 `.part` 写入失败（yt-dlp 参数新增 `--windowsfilenames`） | 项目目录重组：`doc/` `test/` `deploy/` `tools/` `scripts/`，清理一次性调试脚本 |

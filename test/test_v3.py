@@ -52,7 +52,7 @@ print("=" * 62)
 code, _, body = req("GET", "/api/version")
 v = json.loads(body)
 print("    GET /api/version  -> %d  %s" % (code, body[:120]))
-check("/api/version 返回 3.0.0", code == 200 and v.get("version") == "3.0.0")
+check("/api/version 返回 3.0.1", code == 200 and v.get("version") == "3.0.1")
 
 code, _, body = req("GET", "/api/files")
 f = json.loads(body)
