@@ -68,7 +68,7 @@ docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.0 -o ytdl-ap
 docker load -i ytdl-app-v3.0.0.tar
 ```
 
-详见 [DEPLOY.md](./DEPLOY.md)。
+详见 [DEPLOY.md](./doc/DEPLOY.md)。
 
 ### 3. 上传 Cookie（首次必须）
 1. 用浏览器登录 youtube.com
@@ -100,17 +100,29 @@ ytdl-app/
 │   └── index.html           # 单页前端（无框架）
 ├── static/
 │   └── ytdl_redirect.html
-├── config/
-│   └── cookies.txt          # Google 登录凭证（不入 git）
-├── DESIGN.md                # 设计方案
-├── README.md                # 本文档
-├── PROJECT_STATE.md         # 项目状态 / 交接文档
+├── config/                  # Google 登录凭证（不入 git）
+│   └── cookies.txt
+├── doc/                     # 文档
+│   ├── DEPLOY.md            # NAS 部署手册
+│   ├── DESIGN.md            # 设计方案
+│   └── PROJECT_STATE.md     # 项目状态 / 交接文档
+├── deploy/                  # Docker Compose 部署文件
+│   ├── docker-compose.yml           # 本机（WSL）部署
+│   └── docker-compose.server.yml    # NAS / 服务器部署
+├── test/                    # 测试代码
+│   ├── test_v3.py
+│   ├── test_e2e.sh
+│   └── test_upload.py
+├── tools/                   # 用户运维工具
+│   ├── 刷新Cookie.bat       # Windows 一键导出 Cookie
+│   ├── 刷新Cookie.ps1
+│   └── _backup.sh           # Cookie 备份脚本
+├── scripts/                 # 发布脚本
+│   └── _rebuild_push.sh     # 重建镜像 + 推 ACR
 ├── Dockerfile               # 镜像构建
-├── docker-compose.yml       # 本机部署
-├── docker-compose.server.yml# NAS/服务器部署
 ├── requirements.txt
-├── 刷新Cookie.bat            # Windows 一键导出 Cookie
-└── 刷新Cookie.ps1
+├── README.md                # 本文档
+└── .gitignore
 ```
 
 ---

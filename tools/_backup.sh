@@ -1,8 +1,10 @@
 #!/bin/bash
-# 把线上 cookies.txt 备份到项目外的安全位置做双保险（测试完删除脚本，保留备份）
+# 把 config/cookies.txt 备份到项目外的安全位置做双保险
+# 用法：在项目根目录执行  bash tools/_backup.sh
 set -e
-SRC=/mnt/e/work/ytdl-app/config/cookies.txt
-SAFE=/mnt/e/ytdl_safeback
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SRC="$ROOT/config/cookies.txt"
+SAFE="${YTDL_SAFE_BACKUP_DIR:-$ROOT/../ytdl_safeback}"
 mkdir -p "$SAFE"
 cp -p "$SRC" "$SAFE/cookies.txt.$(date +%Y%m%d-%H%M%S).safe"
 echo "=== 项目外安全备份 ==="

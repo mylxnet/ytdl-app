@@ -1,9 +1,11 @@
 #!/bin/bash
 # 方案 B：禁用 buildx provenance 重新构建镜像，然后推送 ACR
+# 用法：在项目根目录执行  bash scripts/_rebuild_push.sh
 set -e
 
 REG="registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app"
-SRC_DIR="/mnt/e/work/ytdl-app"
+# 脚本所在目录的上一级 = 项目根
+SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "=== 0. 检查 buildx 版本 ==="
 docker buildx version 2>&1 || docker buildx 2>&1 | head -3
@@ -39,7 +41,7 @@ echo "RepoDigests: $(docker image inspect ytdl-app:latest --format '{{.RepoDiges
 echo ""
 echo "=== 5. 起容器确认能跑 ==="
 cd "$SRC_DIR"
-docker compose up -d 2>&1 | tail -5
+docker compose -f deploy/docker-compose.yml up -d 2>&1 | tail -5
 sleep 3
 curl -s http://localhost:8765/api/version || true
 

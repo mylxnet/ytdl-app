@@ -1,6 +1,6 @@
 services:
   ytdl:
-    build: .
+    build: ..
     image: ytdl-app:latest
     container_name: ytdl-app
     restart: unless-stopped
@@ -8,6 +8,6 @@ services:
       - "8765:8765"
     volumes:
       - /mnt/e/Downloads/YouTube:/downloads   # 宿主机下载目录（WSL 路径）
-      - ./config:/config                      # cookies.txt 放这里
+      - ../config:/config                     # cookies.txt 放这里（相对本文件上一级）
     environment:
       - TZ=Asia/Shanghai
