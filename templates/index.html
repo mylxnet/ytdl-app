@@ -250,11 +250,12 @@ function listen(tid) {
     if (s.status === "queued") txt = "排队中…";
     else if (s.status === "downloading") txt = `下载中 ${(s.progress||0).toFixed(1)}%  ${s.speed||""}  剩余 ${s.eta||""}`;
     else if (s.status === "done") { txt = "✓ 下载完成"; es.close(); loadFiles(); }
+    else if (s.status === "skipped") { txt = "⏭ 该画质已存在，未重复下载"; es.close(); loadFiles(); }
     else if (s.status === "error") { txt = "✗ 失败：" + (s.error||"未知错误"); es.close(); }
     else { txt = "任务已结束"; es.close(); }
     const el = document.getElementById("taskStatus");
     el.textContent = txt;
-    el.className = "status " + (s.status==="done"?"ok":s.status==="error"?"err":"");
+    el.className = "status " + (s.status==="done"?"ok":s.status==="error"?"err":s.status==="skipped"?"warn":"");
   };
 }
 

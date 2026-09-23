@@ -6,7 +6,7 @@
 set -e
 
 REG="registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app"
-VER="${1:-v3.0.2}"          # 目标版本 tag，可由第一个参数覆盖
+VER="${1:-v3.0.3}"          # 目标版本 tag，可由第一个参数覆盖
 # 脚本所在目录的上一级 = 项目根
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 

@@ -1,7 +1,7 @@
 # 项目状态 / 交接文档
 
 > 项目：YouTube 下载器（ytdl-app）
-> 当前版本：**V3.0.2**（2026-09-24）
+> 当前版本：**V3.0.3**（2026-09-24）
 > 署名：by Mr lin
 
 ---
@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本号 | 3.0.2 |
+| 版本号 | 3.0.3 |
 | 代码位置 | `e:\work\ytdl-app` |
 | 镜像 | `ytdl-app:latest`（WSL `lxsyzd` 内） |
 | 访问地址 | http://localhost:8765 |
@@ -19,13 +19,13 @@
 | 桌面工具版本 | 1.0.0（`tools/cookie-exporter`，独立版本号，见 2.4） |
 
 **版本号三处一致性校验**：
-- 后端 `app/main.py` 第 28 行 `VERSION = "3.0.2"`
-- 页面 footer `V3.0.2 · by Mr lin`（实测页面 HTML：`<footer>V3.0.2  ·  by Mr lin</footer>`）
-- 本文档 / README.md / DESIGN.md / DEPLOY.md 均标注 V3.0.2
+- 后端 `app/main.py` 第 28 行 `VERSION = "3.0.3"`
+- 页面 footer `V3.0.3 · by Mr lin`（实测页面 HTML：`<footer>V3.0.3  ·  by Mr lin</footer>`）
+- 本文档 / README.md / DESIGN.md / DEPLOY.md 均标注 V3.0.3
 
 ---
 
-## 二、已完成功能（V3.0.2）
+## 二、已完成功能（V3.0.3）
 
 ### 2.1 V3 本轮重构
 | 功能 | 实现位置 | 验证方式 |
@@ -130,6 +130,46 @@ file        -> Deep Conscious Dub 🔊 Heavy Bass Reggae ｜ ... [MTwRIug5LlU].m
 **遗留待确认**：`--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |`，均为半角）；emoji `🔊` 与全角 `｜`（U+FF5C）不属于非法字符，实测文件名中原样保留。因此 **NAS 上原始的「.part 写入失败」是否真由该参数解决，仍需 NAS 实测**——本地 WSL 的 NTFS 挂载（9p）无法复现 NAS 文件系统的行为。
 
 **验证状态**：本机端到端已通过 ✅；NAS 场景待实测 🔄。
+
+### 2.6 V3.0.3 修复（进度不回传 + 画质重名）
+
+**现象**：解析成功、3 秒倒计时结束后，页面上的下载任务**没有任何动静**（进度条始终 0%、无实时速度）；但视频其实已经下载落盘到 NAS，刷新页面后文件正常出现在列表里。
+
+**根因**：任务状态是**进程内内存变量**，而 gunicorn 以 `-w 2` 起了两个独立 worker 进程，两份 `TASKS` 互不可见。
+
+- `POST /api/download` 落在 worker A → 任务建在 A、后台线程也在 A 跑，**下载本身是成功的**
+- `GET /api/stream/<tid>`（SSE）是另一个独立请求，可能被分给 worker B → B 的 `TASKS` 里没有该 tid → `api_stream` 立即返回 `{"status":"gone"}` → 前端落到 `else` 分支显示「任务已结束」并 `es.close()`，**进度永远停在 0%**
+
+**实测复现（修复前）**：创建任务后连查 20 次 `/api/task/<tid>`，**5 次返回 404**（25% 落在另一个 worker）。
+
+**修复**（[Dockerfile](file:///e:/ytdl-app/Dockerfile#L25-L28)）：
+
+```
+-w 2 -b 0.0.0.0:8765
+→ -w 1 -k gthread --threads 8 -b 0.0.0.0:8765
+```
+
+单进程保证状态唯一；`gthread` 线程池保证 SSE 只占一个线程、不再独占整个 worker（sync worker 下一条 SSE 会占满一只 worker 直到任务结束）。业务代码 [main.py](file:///e:/ytdl-app/app/main.py) 未改动。
+
+**顺带修复的两个重名问题**：
+
+1. **换画质重下被静默跳过**：输出模板 `%(title).120B [%(id)s].%(ext)s` 不含画质，同一视频同 id 必然同名 → yt-dlp 判「已存在」直接跳过（exit 0），改选 4K 也下不来。现模板改为 `%(title).120B [%(id)s][{画质}].%(ext)s`，标记取 `[1080p]` / `[2160p]` / `[720p]` / `[audio]`
+2. **跳过时误报「下载完成」**：yt-dlp 跳过时打印 `has already been downloaded` 并以 0 退出，后端原样记成 `done` + 100% 并**再追加一条历史**。现识别该输出行（`ALREADY_DL_RE`），如实上报 `skipped`，前端提示「⏭ 该画质已存在，未重复下载」；`/api/stream` 终止条件同步补 `skipped`，历史不再虚增
+
+**实测证据（2026-09-24，容器重建后）**：
+```
+docker top   -> 仅 1 个 worker 进程（修复前为 2 个）
+gunicorn log -> Using worker: gthread
+version      -> {"ok":true,"version":"3.0.3"}
+页面 footer  -> <footer>V3.0.3  ·  by Mr lin</footer>
+原 bug 反证  -> 连查同一任务状态 20 次，全部命中 20/20（修复前 15/20）
+SSE 实时流   -> 0.0s queued / 1.0s downloading 0% / 6.0s downloading 100% 4.15MiB/s / 9.0s done，流正常结束
+换画质实下   -> 720p status done，落盘 …[dQw4w9WgXcQ][720p].mp4（20.03 MB）
+同画质重下   -> status skipped，历史记录保持 7 条不变（不虚增）
+容器代码核对 -> --windows-filenames / _out_template / ALREADY_DL_RE / skipped 均在镜像内，V3.0.2 修复未回归
+```
+
+**说明（升级注意）**：文件名规则变更后，旧格式 `标题 [id].mp4` 与新格式 `标题 [id][1080p].mp4` 不一致，升级后首次重下同一视频会真正重新下载一份；旧文件仍在列表中，预览 / 下载 / 删除均不受影响。
 
 ---
 
@@ -236,6 +276,19 @@ file        -> Deep Conscious Dub 🔊 Heavy Bass Reggae ｜ ... [MTwRIug5LlU].m
 
 ---
 
+### #16 gunicorn 多 worker 导致进程内任务状态分裂（进度不回传）
+- **现象**：解析成功、倒计时结束后，页面下载任务「没有动静」——进度条停在 0%、无实时速度；但文件其实已下载到 NAS，刷新页面后正常出现在列表
+- **根因**：`TASKS` / `_queue` / `_worker_thread` 都是**进程内内存变量**，而 gunicorn 以 `-w 2` 起了两个独立 worker。`POST /api/download` 与 `GET /api/stream/<tid>` 是两次独立请求，若分别落到不同 worker，SSE 那个 worker 查不到任务，立刻返回 `{"status":"gone"}`，前端显示「任务已结束」并关闭连接 → 进度永远不动
+- **定位方式**：创建任务后连查 20 次 `/api/task/<tid>`，**5 次 404**；`docker top` 确认容器内有 2 个 worker，日志 `Using worker: sync`
+- **修复**：Dockerfile 改为 `-w 1 -k gthread --threads 8`。单进程保证状态唯一；gthread 线程池顺带解决「sync worker 被一条 SSE 独占直到任务结束」的问题
+- **教训**：
+  1. **多进程部署下，进程内状态必须当成「不可靠」**：任何 `dict` / 全局变量 / 队列只要靠内存，就无法跨 worker 共享。要么单进程，要么外置（Redis / SQLite / 文件）
+  2. **同步 worker + SSE 长连接是天然冲突**：一条 SSE 就占满一只 sync worker，`-w 2` 时下载期间一半处理能力被吃掉。长连接场景要用线程 / 协程 worker
+  3. **「下载成功了但界面没反应」优先怀疑状态回传链路，而不是下载本身**——文件落盘与状态回传是两条独立路径，可以一条通、一条不通
+  4. **负载均衡下的间歇性故障要靠统计取证**：单次请求可能碰巧命中，只有连续多次请求的命中率才能把问题钉死
+
+---
+
 ## 四、架构决策
 
 | 决策 | 理由 |
@@ -254,7 +307,6 @@ file        -> Deep Conscious Dub 🔊 Heavy Bass Reggae ｜ ... [MTwRIug5LlU].m
 
 | 限制 | 影响 | 计划 |
 |---|---|---|
-| **gunicorn 2 worker 跨进程不共享 TASKS** | 极端情况下可能并发下载两个任务，违背串行设计 | V4 改 1 worker |
 | **容器重启丢进行中任务** | TASKS 在内存 | 可接受（单人使用） |
 | **无鉴权** | 局域网可见，公网部署=裸奔 | V4 加单密码鉴权 |
 | **磁盘耗尽未处理** | 下载中途可能失败 | V4 加提交前空间检查 |
@@ -339,7 +391,7 @@ docker exec -it ytdl-app bash
 
 ### 导出镜像给 NAS / 服务器
 ```bash
-docker save ytdl-app:latest | gzip > ytdl-app-v3.0.2.tar.gz
+docker save ytdl-app:latest | gzip > ytdl-app-v3.0.3.tar.gz
 ```
 
 ### 推送到阿里云 ACR
@@ -347,7 +399,7 @@ docker save ytdl-app:latest | gzip > ytdl-app-v3.0.2.tar.gz
 **推荐：一键脚本（版本号可传参，不用再手改脚本）**
 ```bash
 cd /mnt/e/work/ytdl-app
-bash scripts/_rebuild_push.sh v3.0.2   # 省略参数则用脚本默认版本
+bash scripts/_rebuild_push.sh v3.0.3   # 省略参数则用脚本默认版本
 ```
 脚本流程：停容器 → 清旧镜像 → buildx 无缓存构建（`--provenance=false`）→ 起容器验版本 → 打 ACR tag → 推送版本 tag 与 latest → `imagetools inspect` 远端 manifest 校验。
 
@@ -358,11 +410,11 @@ docker buildx build --no-cache --provenance=false \
     --platform linux/amd64 -t ytdl-app:latest .
 
 # 打 tag
-docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
+docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
 docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 推送
-docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
 docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 反向验证（按 digest 拉取，跳过本机 tag 缓存）
@@ -377,25 +429,25 @@ docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返
 本地镜像 -> ID fc8c0c872c50（与远端 digest 前缀一致，确认为同一镜像）
 容器复验 -> docker ps: ytdl-app Up；curl /api/version: {"ok":true,"version":"3.0.2"}
 ```
-⚠️ ACR 上的 `v3.0.1` 仍是坏的（参数名拼写错误），NAS 若已拉取该 tag，需更新到 `v3.0.2`。
+⚠️ ACR 上的 `v3.0.1` 仍是坏的（参数名拼写错误），NAS 若已拉取该 tag，需更新到 `v3.0.3`。
 
 ### NAS / 服务器部署
 ```bash
-# 上传 ytdl-app-v3.0.2.tar.gz 和 docker-compose.server.yml 到服务器
+# 上传 ytdl-app-v3.0.3.tar.gz 和 docker-compose.server.yml 到服务器
 cd /opt/ytdl
 mkdir -p downloads config
-gunzip -c ytdl-app-v3.0.2.tar.gz | docker load
+gunzip -c ytdl-app-v3.0.3.tar.gz | docker load
 docker compose -f docker-compose.server.yml up -d
 ```
 
 ### 版本号递增流程
-1. 改 `app/main.py` 的 `VERSION = "3.0.2"`
+1. 改 `app/main.py` 的 `VERSION = "3.0.3"`
 2. 改 `templates/index.html` 的 footer 显示版本
 3. 改 `README.md` / `DESIGN.md` / `PROJECT_STATE.md` 中的版本号
 4. `docker compose up -d --build`
 5. 跑回归测试
 6. `git commit` 中文提交信息
-7. 导出镜像 `ytdl-app-v3.0.2.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
+7. 导出镜像 `ytdl-app-v3.0.3.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
 8. 推送到 ACR：`docker buildx build --no-cache --provenance=false ...`（见上一节「推送到阿里云 ACR」）
 
 ### 桌面工具打包（tools/cookie-exporter）
@@ -438,6 +490,7 @@ tools\cookie-exporter\.venv\Scripts\python tools\cookie-exporter\src\main.py
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| V3.0.3 | 2026-09-24 | **修复「页面进度不动、文件其实已下载」**：gunicorn 由 `-w 2`（sync）改为 `-w 1 -k gthread --threads 8`，消除多 worker 进程内状态分裂；输出文件名加入画质标记，换画质可真正重下；识别 `has already been downloaded` 并如实上报 `skipped`，不再虚增历史。本机实测：单 worker、任务状态 20/20 命中（修复前 15/20）、SSE 实时进度正常、720p 真实下载 20.03 MB、同画质重下 skipped。新增踩坑 #16 |
 | V3.0.2 | 2026-09-24 | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` → `--windows-filenames`，恢复解析 / 下载 / Cookie 验证三条链路；版本号六处同步；容器重建后完成真实下载取证（MP3 9,143,012 字节）；新增踩坑 #15（参数名拼写 + 未验证发版）；镜像推送 ACR（v3.0.2 + latest，digest `fc8c0c87…`，无 attestation）；发布脚本 `_rebuild_push.sh` 版本号参数化 |
 | V3.0.1 | 2026-09-24 | 修复特殊字符文件名下载失败（新增文件名清理参数，**参数名拼写错误**，见踩坑 #7/#15）；项目目录重组（`doc/` `test/` `deploy/` `tools/` `scripts/`）；镜像推送 ACR（v3.0.1 + latest）⚠️ **该版本实际不可用** |
 | 桌面工具 V1.0.0 | 2026-09-24 | 新增 `tools/cookie-exporter`：浏览器 Cookie 导出器（Tkinter 界面 + yt-dlp），单文件 exe 19.6 MB，目标机器免装 Python；新增踩坑 #8~#14（Tkinter 线程模型、验证三态、凭据最小化、PowerShell BOM、PyInstaller specpath、单文件双进程、PrintWindow 取证）；清理一次性调试脚本与中间产物，保留 `build/build.ps1` |

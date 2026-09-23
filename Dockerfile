@@ -22,4 +22,7 @@ ENV DOWNLOAD_DIR=/downloads COOKIES_FILE=/config/cookies.txt
 VOLUME ["/downloads", "/config"]
 
 EXPOSE 8765
-CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:8765", "--timeout", "7200", "app.main:app"]
+# 必须单 worker：TASKS / _queue 都是进程内状态，多 worker 会各持一份互不可见，
+# 导致 SSE 连接落到另一个 worker 时查不到任务（表现为「页面进度不动、文件其实已下载」）。
+# 用 gthread 线程池替代多进程：SSE 只占一个线程，不再独占整个 worker。
+CMD ["gunicorn", "-w", "1", "-k", "gthread", "--threads", "8", "-b", "0.0.0.0:8765", "--timeout", "7200", "app.main:app"]

@@ -1,6 +1,6 @@
 # YouTube 下载器 — 设计方案 V3
 
-> 版本：V3.0.2（2026-09-24）
+> 版本：V3.0.3（2026-09-24）
 > 现状：V3 已上线并验证（Flask + yt-dlp + Docker，NAS 部署 / 浏览器访问 / 文件回传本机）
 > 本文档：完整设计方案 + 关键问题清单，作为后续演进与部署的依据
 > by Mr lin
@@ -231,6 +231,7 @@ cd /mnt/e/work/ytdl-app && docker compose up -d
 | **V3.0.0（已完成）** | **NAS 场景重构：删子目录 / 删开始按钮 / 倒计时自动下载 / 页内预览 / 下载回本机 / Cookie 热上传** | ✅ |
 | V3.0.1（已发版，不可用） | 特殊字符文件名下载修复（参数名拼写错误，见 V3.0.2）；项目目录结构重组 | ⚠️ 已被 V3.0.2 取代 |
 | **V3.0.2（已完成，本机实测通过）** | **修复 V3.0.1 的 yt-dlp 参数名错误（`--windowsfilenames` → `--windows-filenames`），恢复解析 / 下载 / Cookie 验证；真实下载 MP3 取证** | ✅ |
+| **V3.0.3（已完成，本机实测通过）** | **修复「页面进度不动、文件其实已下载」：gunicorn 改单进程 + gthread，消除多 worker 进程内状态分裂；文件名加入画质标记，换画质可真正重下；已存在文件如实上报 `skipped`** | ✅ |
 | **桌面工具 V1.0.0（已完成）** | **Cookie 导出器：浏览器 Cookie → cookies.txt，单文件 exe 交付** | ✅ |
 | V4.0 | Cookie 健康横幅 + 失败自动重试 + 播放列表 + 访问密码 | 待排期 |
 | V4.x | 通知 + 磁盘预警 + 字幕 | 按需 |
@@ -314,4 +315,5 @@ powershell -ExecutionPolicy Bypass -File tools\cookie-exporter\build\build.ps1
 | V3.0.0 | 2026-09-23 | 倒计时 3 秒自动下载；页内 Range 预览；下载回本机（另存为）；Cookie 网页热上传（校验→备份→验证→回滚）；`/api/version` | 删除「开始下载」按钮与子目录选择，改单层平铺；事件委托替代内联 onclick；中文文件名走 RFC 5987 `filename*` | `_check_cookie_format` 列号错（`cols[6]` 取到值而非 cookie 名）；`_verify_cookie` 漏 `--remote-components ejs:github` 导致正常 Cookie 被误判失败；`.hidden` 被 `.countdown`/`.modal` 的 `display:flex` 覆盖需 `!important` | 下线 `/api/dirs`；删除文件统一走 `DELETE /api/file` |
 | V3.0.1 | 2026-09-24 | — | — | 文件名含全角竖线 `｜`、emoji 等特殊字符时 `.part` 写入失败（yt-dlp 参数新增 `--windowsfilenames` —— **参数名拼写错误，导致解析/下载/Cookie 验证三处全部失效，该版本实际不可用**） | 项目目录重组：`doc/` `test/` `deploy/` `tools/` `scripts/`，清理一次性调试脚本 |
 | V3.0.2 | 2026-09-24 | — | — | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` 更正为 `--windows-filenames`，恢复 `/api/probe`、`/api/download`、`/api/cookie-upload` 三条链路 | 版本号同步六处（后端 / 页面 footer / README / DESIGN / PROJECT_STATE / DEPLOY） |
+| V3.0.3 | 2026-09-24 | 前端新增 `skipped` 状态提示「该画质已存在，未重复下载」 | gunicorn 由 `-w 2` 改为 `-w 1 -k gthread --threads 8`：单进程保证任务状态唯一，线程池避免 SSE 独占 worker | ①「进度不动、文件已下载」——多 worker 各持一份 `TASKS`，SSE 落到另一 worker 即刻返回 `gone`；② 换画质重下被静默跳过（文件名不含画质）；③ 跳过时误报 done + 虚增历史（现识别 `has already been downloaded` → `skipped`） | 输出文件名模板加入画质标记 `[1080p]/[2160p]/[720p]/[audio]`；`/api/stream` 终止条件补 `skipped` |
 | 桌面工具 V1.0.0 | 2026-09-24 | `tools/cookie-exporter` 独立子模块：浏览器 Cookie → cookies.txt，单文件 exe（18.7 MB，目标机器免装 Python）；浏览器/profile 扫描；登录态三态验证；单实例防重复启动；应用图标 | 只保留 youtube.com / google.com 域（710 → 58 条），避免泄露整机账号凭证；提前拦截未选保存路径；浅色界面 + 白底灰边按钮 | 子线程直接操作 Tkinter 崩溃（改队列 + 主线程轮询）；网络抖动被误判 Cookie 失效（改三态 + 重试 3 次） | 打包脚本 `build.ps1` 固化保留（UTF-8 BOM）；`.gitignore` 忽略 exe 产物但保留打包素材 |

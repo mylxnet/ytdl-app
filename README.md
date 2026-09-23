@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.2** · by Mr lin（配套桌面工具 V1.0.0）
+**版本：V3.0.3** · by Mr lin（配套桌面工具 V1.0.0）
 
 ---
 
@@ -50,22 +50,22 @@ docker compose up -d --build
 
 ```bash
 mkdir -p downloads config
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
 docker run -d --name ytdl-app --restart unless-stopped \
   -p 8765:8765 \
   -v "$PWD/downloads":/downloads \
   -v "$PWD/config":/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
 ```
 
 **离线部署（NAS 无公网）**
 
 ```bash
 # 联网机器导出
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.2 -o ytdl-app-v3.0.2.tar
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3 -o ytdl-app-v3.0.3.tar
 # 拷到 NAS 后加载
-docker load -i ytdl-app-v3.0.2.tar
+docker load -i ytdl-app-v3.0.3.tar
 ```
 
 详见 [DEPLOY.md](./doc/DEPLOY.md)。
@@ -233,6 +233,23 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 ---
 
 ## 更新日志
+
+### V3.0.3（2026-09-24）
+
+**修复**
+- **「解析成功后进度不动、文件其实已下载」**：gunicorn 原以 `-w 2` 起两个 worker，而任务状态（`TASKS` / 队列）是**进程内变量**，两个 worker 各持一份互不可见。SSE 连接若落到另一个 worker，查不到任务即刻返回 `gone`，页面进度永远停在 0%。实测复现：创建任务后连查 20 次状态，5 次返回 404
+- 改为 `-w 1 -k gthread --threads 8`：单进程保证状态唯一，线程池保证 SSE 只占一个线程、不再独占整个 worker
+- **换画质重下被静默跳过**：输出文件名模板不含画质，同一视频同 id 必然同名，yt-dlp 判定「已存在」直接跳过（exit 0）——改选 4K 也下不来。现文件名加入画质标记 `[1080p] / [2160p] / [720p] / [audio]`
+- **误报「下载完成」**：yt-dlp 跳过时会打印 `has already been downloaded` 并以 0 退出，后端原样记成 done + 100% 并追加一条历史。现识别该输出，如实上报 `skipped`，**不再虚增历史记录**
+
+**实测验证（本机容器重建后）**
+- `docker top` 仅 1 个 worker，日志 `Using worker: gthread`；`/api/version` → 3.0.3；页面 footer → `V3.0.3 · by Mr lin`
+- 原 bug 反证：连查同一任务状态 **20 次全部命中**（修复前 15/20）
+- SSE 实时流：`queued → downloading 0% → downloading 100%（4.15MiB/s）→ done`，9.0 秒流正常结束
+- 换画质实下：720p 真实下载 **20.03 MB** 成功，落盘 `…[dQw4w9WgXcQ][720p].mp4`；同画质重下返回 `skipped`，历史记录保持 7 条不变
+
+**说明**
+- 文件名规则变更：旧格式 `标题 [id].mp4` 与新格式 `标题 [id][1080p].mp4` 不一致，升级后首次重下同一视频会真正重新下载一份。旧文件仍在列表中，可正常预览 / 下载 / 删除
 
 ### V3.0.2（2026-09-24）
 

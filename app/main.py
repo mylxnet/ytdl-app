@@ -25,7 +25,7 @@ COOKIE_BACKUP = COOKIES_FILE.with_name(COOKIES_FILE.name + ".bak")
 NODE_PATH = os.environ.get("NODE_PATH", "")
 HISTORY_FILE = DOWNLOAD_DIR / ".history.json"
 
-VERSION = "3.0.2"
+VERSION = "3.0.3"
 
 # Cookie 上传限制：正常 cookies.txt 只有几 KB，1MB 足够且能挡住异常大文件
 MAX_COOKIE_SIZE = 1024 * 1024
@@ -225,10 +225,26 @@ def _quality_args(quality: str) -> list[str]:
     return ["-f", "bestvideo[height<=1080]+bestaudio/best"]
 
 
+# 画质档位 → 文件名标记。画质必须写进文件名：模板若不带画质，同一视频换画质重下
+# 会得到完全相同的目标文件名，yt-dlp 判定「已存在」直接跳过，表现为「换了画质却没下」。
+_QUALITY_TAG = {"audio": "audio", "2160": "2160p", "720": "720p"}
+_QUALITY_DEFAULT_TAG = "1080p"
+
+
+def _out_template(quality: str) -> str:
+    tag = _QUALITY_TAG.get(quality, _QUALITY_DEFAULT_TAG)
+    return str(DOWNLOAD_DIR / f"%(title).120B [%(id)s][{tag}].%(ext)s")
+
+
+# yt-dlp 判定目标文件已存在时会打印这句并直接返回 0（一个字节都没下），
+# 必须识别出来如实上报，否则会被当成「下载完成」并虚增一条历史记录。
+ALREADY_DL_RE = re.compile(r"has already been downloaded")
+
+
 def _run_download(task_id: str) -> None:
     task = TASKS[task_id]
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    out_tmpl = str(DOWNLOAD_DIR / "%(title).120B [%(id)s].%(ext)s")
+    out_tmpl = _out_template(task["quality"])
     cmd = (
         _base_args()
         + _quality_args(task["quality"])
@@ -243,6 +259,8 @@ def _run_download(task_id: str) -> None:
             line = line.strip()
             if not line:
                 continue
+            if ALREADY_DL_RE.search(line):
+                task["skipped"] = True
             m = re.search(r"\[download\]\s+([\d.]+)%.+?at\s+([\d.]+\w+/s|Unknown B/s)"
                           r"(?:\s+ETA\s+([\d:]+|Unknown))?", line)
             if m:
@@ -252,7 +270,9 @@ def _run_download(task_id: str) -> None:
             task.setdefault("log_tail", []).append(line)
             task["log_tail"] = task["log_tail"][-30:]
         proc.wait(timeout=3600)
-        if proc.returncode == 0:
+        if proc.returncode == 0 and task.get("skipped"):
+            task.update(status="skipped", progress=100.0)
+        elif proc.returncode == 0:
             task.update(status="done", progress=100.0)
         else:
             tail = " / ".join(task.get("log_tail", [])[-2:])
@@ -351,7 +371,7 @@ def api_stream(tid: str):
             if snap != last:
                 yield f"data: {json.dumps(snap)}\n\n"
                 last = snap
-            if snap["status"] in ("done", "error"):
+            if snap["status"] in ("done", "error", "skipped"):
                 return
             time.sleep(1)
 
