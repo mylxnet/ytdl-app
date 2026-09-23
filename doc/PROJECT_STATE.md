@@ -421,15 +421,16 @@ docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返回的 digest>
 ```
 
-**最近一次推送记录（V3.0.2，2026-09-24）**
+**最近一次推送记录（V3.0.3，2026-09-24）**
 ```
-推送返回 -> v3.0.2  digest: sha256:fc8c0c872c502dc9bc05e040f1bcfc9fad12d159abdea366535d9c5dd588e66e size: 2382
-推送返回 -> latest  digest: sha256:fc8c0c872c502dc9bc05e040f1bcfc9fad12d159abdea366535d9c5dd588e66e size: 2382（同一镜像）
-远端校验 -> MediaType: application/vnd.oci.image.manifest.v1+json（单 manifest，无 attestation，见踩坑 #6）
-本地镜像 -> ID fc8c0c872c50（与远端 digest 前缀一致，确认为同一镜像）
-容器复验 -> docker ps: ytdl-app Up；curl /api/version: {"ok":true,"version":"3.0.2"}
+构建       -> buildx --no-cache --provenance=false --platform linux/amd64，02:34:29 → 02:40:48
+推送返回   -> v3.0.3  digest: sha256:e26cdede047f63be3598faa8f147c5471ced8bdf5c0d288ab7ddc589f9d4c1ed size: 2382
+推送返回   -> latest  digest: sha256:e26cdede047f63be3598faa8f147c5471ced8bdf5c0d288ab7ddc589f9d4c1ed size: 2382（同一镜像）
+远端校验   -> MediaType: application/vnd.oci.image.manifest.v1+json（单 manifest，无 attestation，见踩坑 #6）
+本地镜像   -> ID e26cdede047f（与远端 digest 前缀一致，确认为同一镜像）
+容器复验   -> docker top: 仅 1 个 gunicorn worker；docker logs: Using worker: gthread；curl /api/version: {"ok":true,"version":"3.0.3"}
 ```
-⚠️ ACR 上的 `v3.0.1` 仍是坏的（参数名拼写错误），NAS 若已拉取该 tag，需更新到 `v3.0.3`。
+⚠️ ACR 上的 `v3.0.1` 仍是坏的（`--windowsfilenames` 参数名拼写错误，解析/下载/Cookie 验证全失效），NAS 若已拉取该 tag，需更新到 `v3.0.3`。
 
 ### NAS / 服务器部署
 ```bash
