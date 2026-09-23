@@ -251,6 +251,11 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 **说明**
 - 文件名规则变更：旧格式 `标题 [id].mp4` 与新格式 `标题 [id][1080p].mp4` 不一致，升级后首次重下同一视频会真正重新下载一份。旧文件仍在列表中，可正常预览 / 下载 / 删除
 
+**发布**
+- 镜像已推送阿里云 ACR：`v3.0.3` 与 `latest`（digest `sha256:e26cdede047f…`，远端为单 manifest、无 attestation，已通过校验）
+- 已打注解 tag `v3.0.3` 并发布 GitHub Release：`https://github.com/mylxnet/ytdl-app/releases/tag/v3.0.3`
+- 发布脚本：`bash scripts/_rebuild_push.sh v3.0.3`
+
 ### V3.0.2（2026-09-24）
 
 **修复**
@@ -258,7 +263,7 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 - 实测验证（本机容器重建后）：`/api/version` → 3.0.2；`/api/probe` 普通视频与含 `🔊`、全角 `｜` 的视频均解析成功；真实下载仅音频 MP3 成功（9,143,012 字节），无 `.part` 写入错误
 
 **说明**
-- `--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |` 半角），emoji 与全角 `｜` 属合法字符不会被替换——NAS 上原始报错是否因此彻底解决，仍需 NAS 实测确认
+- `--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |` 半角），emoji 与全角 `｜` 属合法字符不会被替换——NAS 上原始报错是否因此彻底解决，原计划的 NAS 复验已决定不再执行，按现状归档
 
 **发布**
 - 镜像已推送阿里云 ACR：`v3.0.2` 与 `latest`（digest `sha256:fc8c0c87…`，已通过远端 manifest 校验）

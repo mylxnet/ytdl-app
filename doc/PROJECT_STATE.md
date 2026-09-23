@@ -127,9 +127,9 @@ file        -> Deep Conscious Dub 🔊 Heavy Bass Reggae ｜ ... [MTwRIug5LlU].m
 容器选项自检 -> yt-dlp --help 中 --windows-filenames 命中 1 处
 ```
 
-**遗留待确认**：`--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |`，均为半角）；emoji `🔊` 与全角 `｜`（U+FF5C）不属于非法字符，实测文件名中原样保留。因此 **NAS 上原始的「.part 写入失败」是否真由该参数解决，仍需 NAS 实测**——本地 WSL 的 NTFS 挂载（9p）无法复现 NAS 文件系统的行为。
+**NAS 场景归档（2026-09-24 决定不再跟进）**：`--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |`，均为半角）；emoji `🔊` 与全角 `｜`（U+FF5C）不属于非法字符，实测文件名中原样保留。原计划在 NAS 上跑 `MTwRIug5LlU` 复验「.part 写入失败」是否真被解决（本地 WSL 的 NTFS 挂载 9p 无法复现该场景），**该复验已决定不再单独执行**，按现状归档。
 
-**验证状态**：本机端到端已通过 ✅；NAS 场景待实测 🔄。
+**验证状态**：本机端到端已通过 ✅；NAS 场景不再单独实测（已归档）。
 
 ### 2.6 V3.0.3 修复（进度不回传 + 画质重名）
 
@@ -334,7 +334,6 @@ SSE 实时流   -> 0.0s queued / 1.0s downloading 0% / 6.0s downloading 100% 4.1
 - [ ] 磁盘空间预警
 - [ ] 字幕下载
 - [ ] 孤儿 .part 文件定期清理
-- [ ] gunicorn 改 1 worker
 
 ---
 
