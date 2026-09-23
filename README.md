@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.1** · by Mr lin
+**版本：V3.0.1** · by Mr lin（配套桌面工具 V1.0.0）
 
 ---
 
@@ -116,7 +116,11 @@ ytdl-app/
 ├── tools/                   # 用户运维工具
 │   ├── 刷新Cookie.bat       # Windows 一键导出 Cookie
 │   ├── 刷新Cookie.ps1
-│   └── _backup.sh           # Cookie 备份脚本
+│   ├── _backup.sh           # Cookie 备份脚本
+│   └── cookie-exporter/     # Cookie 导出桌面工具（单文件 exe，独立版本 V1.0.0）
+│       ├── src/             # main.py 界面 / exporter.py 导出校验 / browsers.py 浏览器扫描
+│       ├── assets/          # 应用图标 icon.ico
+│       └── build/           # build.ps1（打包素材，长期保留）+ dist/YtCookieExporter.exe
 ├── scripts/                 # 发布脚本
 │   └── _rebuild_push.sh     # 重建镜像 + 推 ACR
 ├── Dockerfile               # 镜像构建
@@ -166,13 +170,45 @@ ytdl-app/
 
 **推荐做法**（V3）：
 1. 本机浏览器登录 youtube.com
-2. 导出 `cookies.txt`
+2. 导出 `cookies.txt`——直接用 [桌面工具](#桌面工具cookie-导出器可选)：`tools/cookie-exporter/build/dist/YtCookieExporter.exe`，双击 → 选浏览器 → 选保存位置 → 点导出
 3. 网页 → 「上传 Cookie」→ 选择文件
 4. 系统自动验证并生效，**无需重启**
 
 **手动备份**（可选）：
 ```bash
 cp config/cookies.txt /path/to/backup/cookies.txt.$(date +%Y%m%d)
+```
+
+---
+
+## 桌面工具：Cookie 导出器（可选）
+
+`tools/cookie-exporter` 是配套的本机小程序，用来生成上面第 2 步的 `cookies.txt`。
+
+**版本 V1.0.0** · by Mr lin
+
+| 项 | 值 |
+|---|---|
+| 交付物 | `tools/cookie-exporter/build/dist/YtCookieExporter.exe`（单文件，约 18.7 MB） |
+| 运行前提 | Windows x64，**目标机器无需安装 Python** |
+| 用法 | 双击运行 → 选浏览器 → 选保存位置 → 点「开始导出」 |
+
+**特性**
+- 自动扫描本机浏览器的可用 profile（含 Helium、Chrome、Edge、Firefox 等）
+- **提前拦截**：未选保存位置就点导出，直接提示而不等到执行时报错
+- **只导出不上传**：除一次只读登录态校验外不发任何网络请求
+- **隐私裁剪**：只保留 `youtube.com` / `google.com` 域的 Cookie（实测 710 条 → 58 条），不会把整机各站点的登录凭证一起导出
+- **登录态验证**：`https://www.youtube.com/account` 只读校验，三态结果（有效 / 明确无效 / 网络原因未验证）
+- 检测到浏览器正在运行只提示，**不代用户关闭**
+- 单实例运行，重复启动会唤起已有窗口
+- 浅色界面，保存位置每次启动留空（不记忆上次路径）
+
+**从源码打包**
+```powershell
+cd tools\cookie-exporter
+python -m venv .venv
+.venv\Scripts\python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple yt-dlp pyinstaller
+powershell -ExecutionPolicy Bypass -File build\build.ps1
 ```
 
 ---
@@ -197,6 +233,28 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 ---
 
 ## 更新日志
+
+### 桌面工具 V1.0.0（2026-09-24）
+
+**新增**
+- `tools/cookie-exporter`：Cookie 导出桌面工具（Tkinter + yt-dlp），交付**单文件 exe（18.7 MB，目标机器免装 Python）**
+- 自动扫描本机浏览器 profile（含 Helium 等第三方 Chromium）
+- 登录态三态验证（有效 / 明确无效 / 网络原因未验证）+ 请求重试 3 次
+- 单实例防重复启动、应用图标、界面署名 `V1.0.0  by Mr lin`
+
+**优化**
+- **隐私裁剪**：只保留 `youtube.com` / `google.com` 域（实测 710 条 → 58 条），避免把整机各站点登录凭证一起导出
+- 未选保存位置时在校验阶段提前拦截并给出修正建议
+- 保存位置每次启动留空，不记忆上次路径
+- 任务进行中禁用「浏览」「开始导出」并拦截窗口关闭
+
+**修复**
+- 子线程直接操作 Tkinter 控件导致界面崩溃 → 改工作线程写队列 + 主线程轮询
+- 网络抖动被误判为 Cookie 失效 → 改三态结果，不误导用户重刷 Cookie
+
+**调整**
+- 打包脚本 `build/build.ps1` 固化保留（UTF-8 BOM）；`.gitignore` 忽略 exe 产物但保留打包素材
+- 清理一次性验证脚本与截图，仅保留源码、图标、打包脚本与产物
 
 ### V3.0.1（2026-09-24）
 

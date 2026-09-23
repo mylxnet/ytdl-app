@@ -16,6 +16,7 @@
 | 访问地址 | http://localhost:8765 |
 | 下载目录 | `/mnt/e/Downloads/YouTube` |
 | Cookie 位置 | `./config/cookies.txt` |
+| 桌面工具版本 | 1.0.0（`tools/cookie-exporter`，独立版本号，见 2.4） |
 
 **版本号三处一致性校验**：
 - 后端 `app/main.py` 第 28 行 `VERSION = "3.0.1"`
@@ -79,6 +80,32 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 
 **验证状态**：**待 NAS 实测**（本轮按决策未在本地做真实下载验证）
 
+### 2.4 桌面工具：Cookie 导出器（`tools/cookie-exporter`，独立版本 V1.0.0）
+
+**为什么有它**：主服务「网页热上传 Cookie」需要先有 `cookies.txt`。原流程要装浏览器插件手动导出，来源杂、格式不统一。本工具把它做成本机双击即用的小程序：选浏览器 → 选保存位置 → 点导出。
+
+| 项 | 值 |
+|---|---|
+| 版本 | **V1.0.0**（2026-09-24），界面署名 `V1.0.0  by Mr lin` |
+| 交付物 | `tools/cookie-exporter/build/dist/YtCookieExporter.exe`，单文件 **19,648,087 字节（18.7 MB）** |
+| 运行前提 | Windows x64，**目标机器无需安装 Python**（Python 3.12 + yt-dlp 已打进 exe） |
+| 源码 | `src/main.py`（Tkinter 界面）、`src/exporter.py`（导出 + 校验 + 验证）、`src/browsers.py`（浏览器/profile 扫描） |
+| 打包素材 | `build/build.ps1`（长期保留，**必须带 UTF-8 BOM**，见踩坑 #11） |
+| 构建环境 | `.venv`：Python 3.12.10 + yt-dlp 2026.8.19 + PyInstaller 6.22.3 |
+
+**用户硬性要求（勿打折）**：双击即用、目标机免装 Python；保存位置每次启动留空；只导出不上传；浏览器运行中只提示不代关；单文件 exe + ASCII 文件名；浅色界面、白/灰按钮（禁用红色与 danger）；实时日志真刷新；未选路径点导出必须提前拦截；无弹窗位移动画；防重复启动；导出中禁用破坏性入口。
+
+**已裁决的隐私边界**：导出结果**只保留 `youtube.com` / `google.com` 两个域**（实测 710 条 → 58 条），其余站点凭证一律丢弃——浏览器 Cookie 库里混着上百个站点的登录态，全量落盘等于交出整机账号。
+
+**实测验证记录（2026-09-24）**：
+```
+exe 启动   -> 窗口 1.9 秒出现，下拉框/按钮/进度条/署名/图标正常
+真实导出   -> 58 条 Cookie、4 项凭证全命中（SID、SAPISID、__Secure-1PSID、LOGIN_INFO）
+登录态验证 -> GET https://www.youtube.com/account 返回 HTTP 200（未登录会 302 → accounts.google.com）
+落盘位置   -> F:\UserFiles\DeskTop\cookies.txt（用户手动选择）
+产物       -> 单文件 exe，19,648,087 字节
+```
+
 ---
 
 ## 三、踩坑记录
@@ -126,6 +153,48 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 - **根因**：yt-dlp 默认输出模板 `%(title)s.%(ext)s` 未做跨平台字符清理，全角竖线 `｜`（U+FF5C）等字符使临时分片文件路径解析异常
 - **修复**：`_base_args()` 参数列表新增 `--windowsfilenames`
 - **教训**：面向 NAS / 跨平台部署的下载器必须显式声明文件名清理策略，不能假设目标文件系统能接受任意字符
+
+### #8 子线程直接操作 Tkinter 控件导致崩溃（桌面工具）
+- **现象**：导出任务在工作线程里调 `root.after(...)` 回传日志，界面随机崩溃或日志不刷新
+- **根因**：Tkinter 不是线程安全的，只有创建控件的主线程才能碰控件；从子线程调度同样不安全
+- **修复**：工作线程只往 `queue.Queue` 里塞消息，主线程用 `root.after(100, poll)` 定时轮询队列再更新界面
+- **教训**：GUI 框架的线程模型必须先查清楚。跨线程一律走队列，不要图省事直接回调
+
+### #9 网络抖动被误判成 Cookie 失效（桌面工具）
+- **现象**：Cookie 明明可用，验证却报失败，用户被引导去反复重刷 Cookie
+- **根因**：验证只看 HTTP 状态，且没区分「业务上明确无效」与「网络原因没验成功」；YouTube 偶发直接断开（实测一次 `Remote end closed connection without response`，紧接着连测三次均正常）
+- **修复**：验证改**三态**（有效 / 明确无效 / 网络原因未验证），并对验证请求重试 3 次（间隔 1.5s）
+- **教训**：验证器必须区分「确认失败」和「没能确认」，否则会给出误导性的操作指引
+
+### #10 全量导出 Cookie 等于交出整机账号（桌面工具）
+- **现象**：首次导出得到 710 条 Cookie，涉及 192 个站点——淘宝、抖音、飞书等登录凭证全在文件里
+- **根因**：`yt-dlp --cookies` 导出的是浏览器 Cookie 库的全部内容，不做站点过滤
+- **修复**：导出后按域过滤，**只保留 `youtube.com` / `google.com`**（710 → 58 条），下载器所需的 4 项登录凭证全部在内
+- **教训**：凭据类文件必须按「最小必要」裁剪。用户只想要下载器的登录态，不该顺手把整机账号打包带走
+
+### #11 PowerShell 5.1 按 GBK 读脚本，UTF-8 无 BOM 的中文注释解析报错（桌面工具）
+- **现象**：`build.ps1` 用 UTF-8 无 BOM 保存后执行报错，提示中文注释处出现意外的字符
+- **根因**：Windows PowerShell 5.1 对无 BOM 的脚本按系统 ANSI 代码页（中文环境为 GBK）解码，UTF-8 的中文注释被解成乱码字节，脚本解析失败
+- **修复**：`build.ps1` **必须带 UTF-8 BOM** 保存
+- **教训**：面向 Windows PowerShell 5.1 的脚本含非 ASCII 字符时，BOM 不是可选项
+
+### #12 PyInstaller 默认把 `.spec` 写到当前工作目录，污染仓库根目录（桌面工具）
+- **现象**：打包后发现仓库根目录多了 `YtCookieExporter.spec`
+- **根因**：PyInstaller 默认以当前工作目录为 spec 输出位置，与 `--workpath` / `--distpath` 无关
+- **修复**：`build.ps1` 显式加 `--specpath build`，把 spec 固定到 build 目录内
+- **教训**：工具链的输出路径要逐个显式指定，默认值往往落在最不希望的位置
+
+### #13 单文件 exe 运行时会分裂成父子两个进程（桌面工具）
+- **现象**：脚本按进程名找窗口，抓到的是没有窗口的父进程，取窗口句柄始终为空
+- **根因**：PyInstaller 单文件模式下，父进程负责解压与启动，真正的界面跑在子进程里
+- **修复**：枚举进程后按 `MainWindowHandle -ne 0` 过滤，才能定位到持有窗口的那个进程
+- **教训**：单文件打包的运行模型与源码运行不同，自动化取证脚本要按实际模型写
+
+### #14 截图取证要靠 PrintWindow，不能靠 SetForegroundWindow + CopyFromScreen（桌面工具）
+- **现象**：截图抓到一片空白，或抓不到目标窗口
+- **根因**：`SetForegroundWindow` 常被系统限制而失效；`CopyFromScreen` 抓的是屏幕像素，窗口未置顶或正处于重绘瞬间就会得到空白
+- **修复**：用 `PrintWindow(hwnd, hdc, 2)`（`PW_RENDERFULLCONTENT`）直接让窗口把自己画到目标 DC，不依赖窗口是否在前台
+- **教训**：窗口取证不要依赖系统前台策略，直接从窗口自身渲染结果取图
 
 ---
 
@@ -272,6 +341,27 @@ docker compose -f docker-compose.server.yml up -d
 7. 导出镜像 `ytdl-app-v3.0.1.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
 8. 推送到 ACR：`docker buildx build --no-cache --provenance=false ...`（见上一节「推送到阿里云 ACR」）
 
+### 桌面工具打包（tools/cookie-exporter）
+```powershell
+# 首次准备（国内源）
+cd tools\cookie-exporter
+python -m venv .venv
+.venv\Scripts\python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple yt-dlp pyinstaller
+
+# 打包（在仓库根目录或任意位置均可）
+powershell -ExecutionPolicy Bypass -File tools\cookie-exporter\build\build.ps1
+
+# 产物
+tools\cookie-exporter\build\dist\YtCookieExporter.exe
+```
+
+源码方式运行（调试界面时用）：
+```powershell
+tools\cookie-exporter\.venv\Scripts\python tools\cookie-exporter\src\main.py
+```
+
+**注意**：`build/build.ps1` 含中文注释，保存时必须带 UTF-8 BOM（见踩坑 #11）；`.spec` 已在脚本里用 `--specpath build` 固定到 build 目录内（见踩坑 #12）。
+
 ---
 
 ## 九、协作约定（本项目内）
@@ -292,6 +382,7 @@ docker compose -f docker-compose.server.yml up -d
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
 | V3.0.1 | 2026-09-24 | 修复特殊字符文件名下载失败（`--windowsfilenames`，踩坑 #7）；项目目录重组（`doc/` `test/` `deploy/` `tools/` `scripts/`）；镜像推送 ACR（v3.0.1 + latest） |
+| 桌面工具 V1.0.0 | 2026-09-24 | 新增 `tools/cookie-exporter`：浏览器 Cookie 导出器（Tkinter 界面 + yt-dlp），单文件 exe 19.6 MB，目标机器免装 Python；新增踩坑 #8~#14（Tkinter 线程模型、验证三态、凭据最小化、PowerShell BOM、PyInstaller specpath、单文件双进程、PrintWindow 取证）；清理一次性调试脚本与中间产物，保留 `build/build.ps1` |
 | V3.0.0 (ACR) | 2026-09-23 | 镜像推送至阿里云 ACR（v3.0.0 + latest），补充 DEPLOY.md、README 部署章节、踩坑 #6（buildx provenance） |
 | V3.0.0 | 2026-09-23 | 本文件首次建立，同步 V3 全部改动与踩坑记录 |
 | V2.x | 2026-09-22 | 项目交接文档首次建立 |

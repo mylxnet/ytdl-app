@@ -1,6 +1,8 @@
 # --- 敏感文件（绝不能入库）---
 config/cookies.txt
 config/cookies.txt.*
+cookies.txt
+cookies.txt.*
 *.env
 
 # --- 提交信息临时文件 ---
@@ -19,6 +21,12 @@ venv/
 # --- 调试输出 ---
 *.log
 shots/
+
+# --- cookie-exporter 桌面工具（只忽略构建中间产物，保留打包脚本）---
+tools/cookie-exporter/build/*
+!tools/cookie-exporter/build/build.ps1
+tools/cookie-exporter/dist/
+tools/cookie-exporter/*.spec
 
 # --- Docker 镜像导出包（体积巨大）---
 ytdl-app-*.tar.gz

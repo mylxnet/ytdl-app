@@ -126,10 +126,11 @@ Cookie 一般有效期 3-7 天。失效表现：所有下载都报 `Sign in to c
 ### 4.1 网页上传（推荐，无需重启容器）
 
 1. 在**你自己电脑**的浏览器（Edge/Chrome）登录 `youtube.com`
-2. 装插件 **Get cookies.txt LOCALLY**（不要走 Google 服务器中转的在线版）
-3. 打开 `youtube.com`，点插件图标导出 `cookies.txt`
-4. 在 ytdl-app 网页上点右上角「⚙ Cookie 设置」展开，选上传
-5. 上传后自动验证，成功会显示 `✓ 上传成功（N 条 Cookie），验证视频：xxx`
+2. 导出 `cookies.txt`，二选一：
+   - **用项目自带桌面工具**（推荐）：`tools/cookie-exporter/build/dist/YtCookieExporter.exe`，双击 → 选浏览器 → 选保存位置 → 点导出。**本机无需安装 Python**，且只保留 YouTube / Google 域凭证，不会泄露其他站点登录态
+   - 装浏览器插件 **Get cookies.txt LOCALLY**（不要走 Google 服务器中转的在线版），打开 `youtube.com` 点插件图标导出
+3. 在 ytdl-app 网页上点右上角「⚙ Cookie 设置」展开，选上传
+4. 上传后自动验证，成功会显示 `✓ 上传成功（N 条 Cookie），验证视频：xxx`
 
 ### 4.2 直接替换 config/cookies.txt
 

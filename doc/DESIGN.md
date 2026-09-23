@@ -230,14 +230,86 @@ cd /mnt/e/work/ytdl-app && docker compose up -d
 | V2（已规划未落地） | Cookie 健康自检 + 错误分类提示 + 进行中任务恢复 | ⏸ 被 V3 取代 |
 | **V3.0.0（已完成）** | **NAS 场景重构：删子目录 / 删开始按钮 / 倒计时自动下载 / 页内预览 / 下载回本机 / Cookie 热上传** | ✅ |
 | V3.0.1（已发版，待 NAS 验证） | 特殊字符文件名下载修复（`--windowsfilenames`）；项目目录结构重组 | 🔄 |
+| **桌面工具 V1.0.0（已完成）** | **Cookie 导出器：浏览器 Cookie → cookies.txt，单文件 exe 交付** | ✅ |
 | V4.0 | Cookie 健康横幅 + 失败自动重试 + 播放列表 + 访问密码 | 待排期 |
 | V4.x | 通知 + 磁盘预警 + 字幕 | 按需 |
 
 ---
 
-## 八、变更记录
+## 八、Cookie 导出桌面工具（tools/cookie-exporter，独立版本 V1.0.0）
+
+### 8.1 为什么需要它
+
+主服务的 Cookie 刷新链路原本是「装浏览器插件 → 手动导出 → 找文件 → 网页上传」，插件来源杂、导出格式不统一。本工具把第一步做成本机双击即用的小程序：选浏览器 → 选保存位置 → 点导出，产出标准 Netscape 格式 `cookies.txt`，再拿去网页上传即可。
+
+### 8.2 交付形态与边界
+
+| 项 | 值 |
+|---|---|
+| 交付物 | `tools/cookie-exporter/build/dist/YtCookieExporter.exe`（**单文件，约 18.7 MB**） |
+| 运行前提 | Windows x64，**目标机器无需安装 Python**（Python 与 yt-dlp 已打进 exe） |
+| 版本 | V1.0.0（2026-09-24），界面署名 `V1.0.0  by Mr lin` |
+| 语言 / 界面 | Python 3.12 + Tkinter（浅色主题，白底灰边按钮，无红色按钮） |
+| 核心依赖 | yt-dlp 2026.8.19（读浏览器 Cookie 库并解密） |
+
+**刻意不做的事**（用户明确裁决，勿擅自扩展）：
+1. **不代关浏览器**——检测到目标浏览器正在运行只提示「请先关闭」，由用户自行处理
+2. **不自动上传**——只在本机生成文件，除一次只读 GET 校验外不发任何网络请求
+3. **不记忆上次保存路径**——每次启动路径框留空，避免误用旧文件
+
+### 8.3 项目结构与流程
+
+```
+tools/cookie-exporter/
+├── src/
+│   ├── main.py       # Tkinter 界面 + 单实例互斥 + 主线程队列轮询
+│   ├── exporter.py   # yt-dlp 导出 → 校验 → 登录态验证 → 落盘
+│   └── browsers.py   # 浏览器 / profile 扫描（输出可直喂 yt-dlp 的绝对路径）
+├── assets/icon.ico   # 应用图标（多尺寸）
+└── build/
+    ├── build.ps1     # 打包素材（长期保留，带 UTF-8 BOM）
+    └── dist/         # 产物 exe
+```
+
+流程：`选浏览器 profile` → `yt-dlp 读 Cookie 落临时文件` → `格式校验（≥10 条 + 4 项登录凭证命中 ≥3）` → `HTTP 只读验证 https://www.youtube.com/account（不跟随重定向）` → **全部通过才写入用户选定路径**。
+
+### 8.4 关键设计决策
+
+| 决策 | 理由 | 放弃的方案 |
+|---|---|---|
+| **只保留 youtube.com / google.com 域** | 浏览器 Cookie 库混着淘宝/抖音/飞书等上百个站点凭证，全量落盘等于交出整机账号。实测 710 条中只留 58 条，下载器所需 4 项凭证全部在内 | 全量导出 |
+| **先落临时文件，验证通过再落盘** | 验证不通过的文件对用户毫无价值，直接落盘会让用户「以为成功」而误用 | 直接写目标路径 |
+| **登录态验证用三态**（有效 / 明确无效 / 网络原因未验证） | YouTube 偶发直接断连，若把网络抖动判成 Cookie 失效，会误导用户反复重刷 Cookie | 二态（成功/失败） |
+| **UI 线程与工作线程用队列通信** | Tkinter 不是线程安全的，子线程直接调 `root.after` 会崩 | 子线程直接操作控件 |
+| **单实例互斥体 + 唤起已有窗口** | 防止重复启动产生多个导出进程抢占浏览器 Cookie 库 | 允许重复启动 |
+| **Helium 等第三方 Chromium 传 profile 绝对路径** | yt-dlp 的 `cookiesfrombrowser` 只认固定浏览器标识，Helium 不在列表内；显式传 profile 路径 + browser key 用 `chrome` 即可正常解密（实测 713 条） | 只支持内置 9 种浏览器 |
+| **判定 profile 是否可用看「里面真有 Cookie 库」** | 只看目录名（Default / Profile 1）会把空 profile 也列进来 | 按目录名枚举 |
+
+### 8.5 界面约定（用户明确要求，勿改）
+
+- 浅色清爽，按钮统一白底灰边，**禁用红色 / danger 样式**
+- 日志区实时刷新，长耗时操作期间显示滚动进度条
+- **提前拦截**：未选保存位置就点导出，在校验阶段拦截并给出修正建议，不等到执行时报错
+- 不使用会位移的弹窗动画，提示统一走状态栏与日志
+- 任务进行中禁用「浏览」「开始导出」，并拦截窗口关闭，避免中途打断
+
+### 8.6 打包（可复现）
+
+```powershell
+# 前置：tools\cookie-exporter\.venv 已装 yt-dlp + pyinstaller（国内源）
+python -m venv .venv
+.venv\Scripts\python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple yt-dlp pyinstaller
+
+# 打包
+powershell -ExecutionPolicy Bypass -File tools\cookie-exporter\build\build.ps1
+```
+
+---
+
+## 九、变更记录
 
 | 版本 | 日期 | 新增 | 优化 | 修复 | 调整 |
 |---|---|---|---|---|---|
 | V3.0.0 | 2026-09-23 | 倒计时 3 秒自动下载；页内 Range 预览；下载回本机（另存为）；Cookie 网页热上传（校验→备份→验证→回滚）；`/api/version` | 删除「开始下载」按钮与子目录选择，改单层平铺；事件委托替代内联 onclick；中文文件名走 RFC 5987 `filename*` | `_check_cookie_format` 列号错（`cols[6]` 取到值而非 cookie 名）；`_verify_cookie` 漏 `--remote-components ejs:github` 导致正常 Cookie 被误判失败；`.hidden` 被 `.countdown`/`.modal` 的 `display:flex` 覆盖需 `!important` | 下线 `/api/dirs`；删除文件统一走 `DELETE /api/file` |
 | V3.0.1 | 2026-09-24 | — | — | 文件名含全角竖线 `｜`、emoji 等特殊字符时 `.part` 写入失败（yt-dlp 参数新增 `--windowsfilenames`） | 项目目录重组：`doc/` `test/` `deploy/` `tools/` `scripts/`，清理一次性调试脚本 |
+| 桌面工具 V1.0.0 | 2026-09-24 | `tools/cookie-exporter` 独立子模块：浏览器 Cookie → cookies.txt，单文件 exe（18.7 MB，目标机器免装 Python）；浏览器/profile 扫描；登录态三态验证；单实例防重复启动；应用图标 | 只保留 youtube.com / google.com 域（710 → 58 条），避免泄露整机账号凭证；提前拦截未选保存路径；浅色界面 + 白底灰边按钮 | 子线程直接操作 Tkinter 崩溃（改队列 + 主线程轮询）；网络抖动被误判 Cookie 失效（改三态 + 重试 3 次） | 打包脚本 `build.ps1` 固化保留（UTF-8 BOM）；`.gitignore` 忽略 exe 产物但保留打包素材 |
