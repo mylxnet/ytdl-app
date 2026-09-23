@@ -243,6 +243,11 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 **说明**
 - `--windows-filenames` 只清理 Windows **非法**字符（`\ / : * ? " < > |` 半角），emoji 与全角 `｜` 属合法字符不会被替换——NAS 上原始报错是否因此彻底解决，仍需 NAS 实测确认
 
+**发布**
+- 镜像已推送阿里云 ACR：`v3.0.2` 与 `latest`（digest `sha256:fc8c0c87…`，已通过远端 manifest 校验）
+- ACR 上的 `v3.0.1` 仍是坏镜像（参数名拼写错误），请勿使用；已拉取该 tag 的 NAS 需更新到 `v3.0.2`
+- 发布脚本 `scripts/_rebuild_push.sh` 版本号已参数化：`bash scripts/_rebuild_push.sh v3.0.2`
+
 ### 桌面工具 V1.0.0（2026-09-24）
 
 **新增**

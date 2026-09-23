@@ -343,6 +343,15 @@ docker save ytdl-app:latest | gzip > ytdl-app-v3.0.2.tar.gz
 ```
 
 ### 推送到阿里云 ACR
+
+**推荐：一键脚本（版本号可传参，不用再手改脚本）**
+```bash
+cd /mnt/e/work/ytdl-app
+bash scripts/_rebuild_push.sh v3.0.2   # 省略参数则用脚本默认版本
+```
+脚本流程：停容器 → 清旧镜像 → buildx 无缓存构建（`--provenance=false`）→ 起容器验版本 → 打 ACR tag → 推送版本 tag 与 latest → `imagetools inspect` 远端 manifest 校验。
+
+**手工等价命令**
 ```bash
 # 必须用 buildx 且禁用 provenance（ACR 不识别 OCI attestation manifest，见踩坑 #6）
 docker buildx build --no-cache --provenance=false \
@@ -359,6 +368,16 @@ docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 # 反向验证（按 digest 拉取，跳过本机 tag 缓存）
 docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返回的 digest>
 ```
+
+**最近一次推送记录（V3.0.2，2026-09-24）**
+```
+推送返回 -> v3.0.2  digest: sha256:fc8c0c872c502dc9bc05e040f1bcfc9fad12d159abdea366535d9c5dd588e66e size: 2382
+推送返回 -> latest  digest: sha256:fc8c0c872c502dc9bc05e040f1bcfc9fad12d159abdea366535d9c5dd588e66e size: 2382（同一镜像）
+远端校验 -> MediaType: application/vnd.oci.image.manifest.v1+json（单 manifest，无 attestation，见踩坑 #6）
+本地镜像 -> ID fc8c0c872c50（与远端 digest 前缀一致，确认为同一镜像）
+容器复验 -> docker ps: ytdl-app Up；curl /api/version: {"ok":true,"version":"3.0.2"}
+```
+⚠️ ACR 上的 `v3.0.1` 仍是坏的（参数名拼写错误），NAS 若已拉取该 tag，需更新到 `v3.0.2`。
 
 ### NAS / 服务器部署
 ```bash
@@ -419,7 +438,7 @@ tools\cookie-exporter\.venv\Scripts\python tools\cookie-exporter\src\main.py
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
-| V3.0.2 | 2026-09-24 | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` → `--windows-filenames`，恢复解析 / 下载 / Cookie 验证三条链路；版本号六处同步；容器重建后完成真实下载取证（MP3 9,143,012 字节）；新增踩坑 #15（参数名拼写 + 未验证发版） |
+| V3.0.2 | 2026-09-24 | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` → `--windows-filenames`，恢复解析 / 下载 / Cookie 验证三条链路；版本号六处同步；容器重建后完成真实下载取证（MP3 9,143,012 字节）；新增踩坑 #15（参数名拼写 + 未验证发版）；镜像推送 ACR（v3.0.2 + latest，digest `fc8c0c87…`，无 attestation）；发布脚本 `_rebuild_push.sh` 版本号参数化 |
 | V3.0.1 | 2026-09-24 | 修复特殊字符文件名下载失败（新增文件名清理参数，**参数名拼写错误**，见踩坑 #7/#15）；项目目录重组（`doc/` `test/` `deploy/` `tools/` `scripts/`）；镜像推送 ACR（v3.0.1 + latest）⚠️ **该版本实际不可用** |
 | 桌面工具 V1.0.0 | 2026-09-24 | 新增 `tools/cookie-exporter`：浏览器 Cookie 导出器（Tkinter 界面 + yt-dlp），单文件 exe 19.6 MB，目标机器免装 Python；新增踩坑 #8~#14（Tkinter 线程模型、验证三态、凭据最小化、PowerShell BOM、PyInstaller specpath、单文件双进程、PrintWindow 取证）；清理一次性调试脚本与中间产物，保留 `build/build.ps1` |
 | V3.0.0 (ACR) | 2026-09-23 | 镜像推送至阿里云 ACR（v3.0.0 + latest），补充 DEPLOY.md、README 部署章节、踩坑 #6（buildx provenance） |
