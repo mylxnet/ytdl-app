@@ -3,6 +3,9 @@ config/cookies.txt
 config/cookies.txt.*
 *.env
 
+# --- 提交信息临时文件 ---
+_commit_msg.txt
+
 # --- Python 产物 ---
 __pycache__/
 *.py[cod]
