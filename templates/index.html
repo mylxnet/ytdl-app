@@ -52,9 +52,18 @@ h2 { font-size:16px; color:var(--dim); font-weight:500; margin-bottom:12px; disp
              background:#0d0f13; border:1px solid var(--warn); border-radius:10px; }
 .cd-num { font-size:22px; font-weight:700; color:var(--warn); min-width:34px; }
 .cd-txt { font-size:14px; color:var(--dim); flex:1; }
-/* Cookie 上传 */
+/* Cookie 上传（默认隐藏，点击「Cookie 设置」切换） */
 .up-zone { border:1px dashed var(--line); border-radius:10px; padding:16px; text-align:center;
            color:var(--dim); font-size:14px; }
+.cookie-card { padding:12px 20px; }
+.cookie-head { display:flex; align-items:center; gap:10px; }
+.cookie-title { font-size:14px; color:var(--dim); font-weight:500; display:flex; align-items:center; gap:8px; }
+.cookie-body { margin-top:12px; }
+.btn-tiny { background:transparent; border:1px solid var(--line); color:var(--dim);
+            padding:5px 12px; font-size:13px; border-radius:6px; cursor:pointer;
+            display:inline-flex; align-items:center; gap:6px; }
+.btn-tiny:hover { color:var(--txt); border-color:#3a4252; }
+.btn-tiny .chev { font-size:11px; }
 /* 预览弹窗 */
 .modal { position:fixed; inset:0; background:rgba(0,0,0,.82); display:flex; align-items:center;
          justify-content:center; z-index:50; padding:20px; }
@@ -111,9 +120,9 @@ footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; l
   <div class="status" id="taskStatus">排队中…</div>
 </div>
 
-<!-- 已下载文件 -->
+<!-- 已缓存文件 -->
 <div class="card">
-  <h2>已下载文件 <span class="pill" id="fileCount">0</span>
+  <h2>已缓存文件 <span class="pill" id="fileCount">0</span>
     <button class="mini ghost" style="margin-left:auto;" onclick="loadFiles()">刷新</button>
   </h2>
   <table>
@@ -122,14 +131,21 @@ footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; l
   </table>
 </div>
 
-<!-- Cookie 上传 -->
-<div class="card">
-  <h2>上传 Cookie <span class="pill">Cookie 失效时用</span></h2>
-  <div class="up-zone">
-    <input type="file" id="cookieFile" accept=".txt,text/plain">
-    <div style="margin-top:10px;">Netscape 格式 cookies.txt（本机 <code style="font-size:12px;">刷新Cookie.bat</code> 导出）。上传后自动验证，无需重启服务。</div>
+<!-- Cookie 上传（默认隐藏，点击标题按钮展开） -->
+<div class="card cookie-card">
+  <div class="cookie-head">
+    <span class="cookie-title">Cookie <span class="pill">失效时用</span></span>
+    <button class="btn-tiny" style="margin-left:auto;" data-act="toggle-cookie">
+      ⚙ Cookie 设置 <span class="chev">▾</span>
+    </button>
   </div>
-  <div class="status" id="cookieMsg"></div>
+  <div class="cookie-body hidden" id="cookieBody">
+    <div class="up-zone">
+      <input type="file" id="cookieFile" accept=".txt,text/plain">
+      <div style="margin-top:10px;">Netscape 格式 cookies.txt（本机 <code style="font-size:12px;">刷新Cookie.bat</code> 导出）。上传后自动验证，无需重启服务。</div>
+    </div>
+    <div class="status" id="cookieMsg"></div>
+  </div>
 </div>
 
 <!-- 用法说明 -->
@@ -141,7 +157,7 @@ footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; l
     <li><b>预览</b>：文件列表点 <b>[预览]</b> 在页内播放，支持拖动进度。</li>
     <li><b>保存到自己电脑</b>：点 <b>[下载]</b>，浏览器弹出「另存为」，选择本地目录即可（文件已存在服务器磁盘，下载是把它拷回本机）。</li>
     <li><b>删除</b>：点 <b>[删除]</b> 并确认，从服务器磁盘移除该文件。</li>
-    <li><b>Cookie 失效</b>：所有视频都报 <code>Sign in to confirm you're not a bot</code> 时，用本机浏览器登录 youtube.com 导出 cookies.txt，在本页「上传 Cookie」即可，<b>无需重启</b>。</li>
+    <li><b>Cookie 失效</b>：所有视频都报 <code>Sign in to confirm you're not a bot</code> 时，用本机浏览器登录 youtube.com 导出 cookies.txt，在本页点「⚙ Cookie 设置」展开后上传，<b>无需重启</b>。</li>
     <li><b>队列串行</b>：同时只下载 1 个任务，避免触发 YouTube 风控；下载中刷新页面不影响任务继续。</li>
   </ol>
 </div>
@@ -310,7 +326,19 @@ document.addEventListener("click", e => {
   else if (act === "del") delFile(name);
   else if (act === "dl-current") downloadCurrent();
   else if (act === "close") closeModal();
+  else if (act === "toggle-cookie") toggleCookie();
 });
+
+function toggleCookie() {
+  const body = document.getElementById("cookieBody");
+  const btn = document.querySelector('button[data-act="toggle-cookie"]');
+  body.classList.toggle("hidden");
+  const isOpen = !body.classList.contains("hidden");
+  if (btn) {
+    btn.querySelector(".chev").textContent = isOpen ? "▴" : "▾";
+    btn.setAttribute("aria-expanded", String(isOpen));
+  }
+}
 
 // ---------------- Cookie 上传 ----------------
 document.getElementById("cookieFile").addEventListener("change", async function() {
