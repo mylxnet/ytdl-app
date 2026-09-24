@@ -306,6 +306,28 @@ python -m venv .venv
 powershell -ExecutionPolicy Bypass -File tools\cookie-exporter\build\build.ps1
 ```
 
+### 8.7 发布规范（exe 走 Release 附件，不入仓库）
+
+**结论**：桌面工具的 exe 只作为 **GitHub Release 附件**发布，**不提交进 git 仓库**。
+
+**理由**：
+1. exe 约 18.7 MB，每改一次代码就要重新打包。若进仓库，每发一版就在 git 历史里永久多一份二进制，仓库体积线性膨胀；即便日后删除文件，历史对象仍占用空间，无法靠常规操作回收
+2. 源码与打包脚本已入库，任何人可复现构建，交付物无需再进版本控制
+3. GitHub 网页的 `Add files via upload` 会**绕过 `.gitignore`**——`.gitignore` 虽已忽略 `tools/cookie-exporter/build/*`（仅保留 `build.ps1`），网页上传仍能强行写入，属**禁止操作**
+
+**约定**：
+
+| 项 | 规则 |
+|---|---|
+| tag | `tool-vX.Y.Z`，与主服务 `vX.Y.Z` 版本线区分（桌面工具是独立版本号） |
+| 附件名 | 必须 ASCII（平台会把中文替换成 `.`，导致附件无法区分） |
+| 附件内容 | 单个 exe，不再打 zip |
+| Release 正文必备 | 用途 / 运行前提 / 用法 / 隐私边界 / 实测记录 / SHA256 校验值 |
+| 发布后验证 | 从 Release 下载回来核对 SHA256 与本地构建产物一致，确认附件未损坏 |
+| 本地产物位置 | `tools/cookie-exporter/build/dist/`（已被 gitignore，仅本地留存） |
+
+**返工教训**：V1.0.0 发布时曾用网页上传把 exe 提交进仓库（提交 `c120d10`，19,648,087 字节），最终只能以 `--force-with-lease` 覆盖远程 `main` 才移出。根因就是网页上传绕过了 `.gitignore`，人工守不住——所以这条写进规范。
+
 ---
 
 ## 九、变更记录

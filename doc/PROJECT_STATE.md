@@ -480,6 +480,30 @@ tools\cookie-exporter\.venv\Scripts\python tools\cookie-exporter\src\main.py
 
 **注意**：`build/build.ps1` 含中文注释，保存时必须带 UTF-8 BOM（见踩坑 #11）；`.spec` 已在脚本里用 `--specpath build` 固定到 build 目录内（见踩坑 #12）。
 
+### 桌面工具发布（exe 走 Release 附件）
+
+**铁律：exe 不提交进 git 仓库**，只作为 GitHub Release 附件发布（原则与理由见 `DESIGN.md` 8.7）。
+
+```bash
+# 1. 打注解 tag —— 独立版本线，勿用主服务的 vX.Y.Z
+git tag -a tool-v1.0.0 -m "桌面工具 V1.0.0 — Cookie 导出器" <commit>
+git push origin tool-v1.0.0
+
+# 2. 建 Release，正文必备六项：
+#    用途 / 运行前提 / 用法 / 隐私边界 / 实测记录 / SHA256 校验值
+
+# 3. 上传附件（附件名必须 ASCII）
+#    POST https://uploads.github.com/repos/mylxnet/ytdl-app/releases/<release_id>/assets?name=YtCookieExporter.exe
+#    Content-Type: application/octet-stream
+
+# 4. 回验：从 Release 下载回来，核对 SHA256 与本地产物一致
+#    本地产物路径 tools/cookie-exporter/build/dist/YtCookieExporter.exe
+```
+
+**禁止**：用 GitHub 网页 `Add files via upload` 传 exe——该入口**绕过 `.gitignore`**，会把 18.7 MB 二进制写进 git 历史。V1.0.0 发布时踩过，最终只能以 `--force-with-lease` 覆盖远程 `main` 返工。
+
+**当前发布记录**见 2.4 节「发布（2026-09-24）」。
+
 ---
 
 ## 九、协作约定（本项目内）
@@ -492,6 +516,7 @@ tools\cookie-exporter\.venv\Scripts\python tools\cookie-exporter\src\main.py
 - 改完要给可核实的证据（跑测试并给出真实输出）
 - 踩过的坑要沉淀到本文档，避免重复踩
 - 收尾要清理：临时脚本 / 测试脚本 / 中间产物，但打包素材保留
+- 二进制交付物（exe / 镜像包等）走 GitHub Release 附件，**不入 git 仓库**；禁止用网页 `Add files via upload` 上传二进制（该入口绕过 `.gitignore`，见 `DESIGN.md` 8.7）
 
 ---
 
@@ -499,6 +524,7 @@ tools\cookie-exporter\.venv\Scripts\python tools\cookie-exporter\src\main.py
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| 文档 | 2026-09-24 | 新增「桌面工具发布规范」：exe 只作为 GitHub Release 附件发布、不入 git 仓库（`DESIGN.md` 8.7 讲原则 + 本文档第八章讲命令 + 协作约定一条）；README 与 2.4 节补 Release 下载链接与 SHA256 校验值 |
 | V3.0.3 | 2026-09-24 | **修复「页面进度不动、文件其实已下载」**：gunicorn 由 `-w 2`（sync）改为 `-w 1 -k gthread --threads 8`，消除多 worker 进程内状态分裂；输出文件名加入画质标记，换画质可真正重下；识别 `has already been downloaded` 并如实上报 `skipped`，不再虚增历史。本机实测：单 worker、任务状态 20/20 命中（修复前 15/20）、SSE 实时进度正常、720p 真实下载 20.03 MB、同画质重下 skipped。新增踩坑 #16 |
 | V3.0.2 | 2026-09-24 | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` → `--windows-filenames`，恢复解析 / 下载 / Cookie 验证三条链路；版本号六处同步；容器重建后完成真实下载取证（MP3 9,143,012 字节）；新增踩坑 #15（参数名拼写 + 未验证发版）；镜像推送 ACR（v3.0.2 + latest，digest `fc8c0c87…`，无 attestation）；发布脚本 `_rebuild_push.sh` 版本号参数化 |
 | V3.0.1 | 2026-09-24 | 修复特殊字符文件名下载失败（新增文件名清理参数，**参数名拼写错误**，见踩坑 #7/#15）；项目目录重组（`doc/` `test/` `deploy/` `tools/` `scripts/`）；镜像推送 ACR（v3.0.1 + latest）⚠️ **该版本实际不可用** |
