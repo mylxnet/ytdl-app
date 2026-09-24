@@ -170,7 +170,7 @@ ytdl-app/
 
 **推荐做法**（V3）：
 1. 本机浏览器登录 youtube.com
-2. 导出 `cookies.txt`——直接用 [桌面工具](#桌面工具cookie-导出器可选)：`tools/cookie-exporter/build/dist/YtCookieExporter.exe`，双击 → 选浏览器 → 选保存位置 → 点导出
+2. 导出 `cookies.txt`——直接用 [桌面工具](#桌面工具cookie-导出器可选)：从 [Release tool-v1.0.0](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.0/YtCookieExporter.exe) 下载 `YtCookieExporter.exe`（或本地构建产物 `tools/cookie-exporter/build/dist/YtCookieExporter.exe`），双击 → 选浏览器 → 选保存位置 → 点导出
 3. 网页 → 「上传 Cookie」→ 选择文件
 4. 系统自动验证并生效，**无需重启**
 
@@ -189,9 +189,10 @@ cp config/cookies.txt /path/to/backup/cookies.txt.$(date +%Y%m%d)
 
 | 项 | 值 |
 |---|---|
-| 交付物 | `tools/cookie-exporter/build/dist/YtCookieExporter.exe`（单文件，约 18.7 MB） |
+| 交付物 | `YtCookieExporter.exe`（单文件，约 18.7 MB）<br>**下载**：[Release tool-v1.0.0](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.0/YtCookieExporter.exe)（本地构建产物在 `tools/cookie-exporter/build/dist/`） |
 | 运行前提 | Windows x64，**目标机器无需安装 Python** |
 | 用法 | 双击运行 → 选浏览器 → 选保存位置 → 点「开始导出」 |
+| 校验值 | SHA256 `5E8149CECF0D6E5F8B3DE5045D52ED8C2890291E963A941E37EDCCFF25C8C736`（19,648,087 字节） |
 
 **特性**
 - 自动扫描本机浏览器的可用 profile（含 Helium、Chrome、Edge、Firefox 等）

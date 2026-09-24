@@ -87,11 +87,12 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 | 项 | 值 |
 |---|---|
 | 版本 | **V1.0.0**（2026-09-24），界面署名 `V1.0.0  by Mr lin` |
-| 交付物 | `tools/cookie-exporter/build/dist/YtCookieExporter.exe`，单文件 **19,648,087 字节（18.7 MB）** |
+| 交付物 | `YtCookieExporter.exe`，单文件 **19,648,087 字节（18.7 MB）**；已作为 Release 附件发布：[tool-v1.0.0](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.0/YtCookieExporter.exe) |
 | 运行前提 | Windows x64，**目标机器无需安装 Python**（Python 3.12 + yt-dlp 已打进 exe） |
 | 源码 | `src/main.py`（Tkinter 界面）、`src/exporter.py`（导出 + 校验 + 验证）、`src/browsers.py`（浏览器/profile 扫描） |
 | 打包素材 | `build/build.ps1`（长期保留，**必须带 UTF-8 BOM**，见踩坑 #11） |
 | 构建环境 | `.venv`：Python 3.12.10 + yt-dlp 2026.8.19 + PyInstaller 6.22.3 |
+| SHA256 | `5E8149CECF0D6E5F8B3DE5045D52ED8C2890291E963A941E37EDCCFF25C8C736` |
 
 **用户硬性要求（勿打折）**：双击即用、目标机免装 Python；保存位置每次启动留空；只导出不上传；浏览器运行中只提示不代关；单文件 exe + ASCII 文件名；浅色界面、白/灰按钮（禁用红色与 danger）；实时日志真刷新；未选路径点导出必须提前拦截；无弹窗位移动画；防重复启动；导出中禁用破坏性入口。
 
@@ -104,6 +105,14 @@ exe 启动   -> 窗口 1.9 秒出现，下拉框/按钮/进度条/署名/图标�
 登录态验证 -> GET https://www.youtube.com/account 返回 HTTP 200（未登录会 302 → accounts.google.com）
 落盘位置   -> F:\UserFiles\DeskTop\cookies.txt（用户手动选择）
 产物       -> 单文件 exe，19,648,087 字节
+```
+
+**发布（2026-09-24）**：源码随仓库入库；exe 作为 **Release 附件**发布（不入 git 仓库，避免 18.7 MB 二进制反复堆进版本历史）。
+```
+tag        -> tool-v1.0.0（注解 tag，独立于主服务 v3.0.x 版本线），指向 main
+Release    -> https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.0
+附件       -> YtCookieExporter.exe（19,648,087 字节，ASCII 文件名）
+下载回验   -> 下载后 SHA256 = 5E8149CE…C736，与本地构建产物完全一致
 ```
 
 ### 2.5 V3.0.2 紧急修复（V3.0.1 参数名拼写错误导致服务不可用）
