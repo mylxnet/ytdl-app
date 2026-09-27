@@ -1,7 +1,7 @@
 # 项目状态 / 交接文档
 
 > 项目：YouTube 下载器（ytdl-app）
-> 当前版本：**V3.0.3**（2026-09-24）
+> 当前版本：**V3.0.4**（2026-09-28）
 > 署名：by Mr lin
 
 ---
@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本号 | 3.0.3 |
+| 版本号 | 3.0.4 |
 | 代码位置 | `e:\work\ytdl-app` |
 | 镜像 | `ytdl-app:latest`（WSL `lxsyzd` 内） |
 | 访问地址 | http://localhost:8765 |
@@ -19,13 +19,13 @@
 | 桌面工具版本 | 1.0.0（`tools/cookie-exporter`，独立版本号，见 2.4） |
 
 **版本号三处一致性校验**：
-- 后端 `app/main.py` 第 28 行 `VERSION = "3.0.3"`
-- 页面 footer `V3.0.3 · by Mr lin`（实测页面 HTML：`<footer>V3.0.3  ·  by Mr lin</footer>`）
-- 本文档 / README.md / DESIGN.md / DEPLOY.md 均标注 V3.0.3
+- 后端 `app/main.py` 第 29 行 `VERSION = "3.0.4"`
+- 页面 footer `V3.0.4 · by Mr lin`（footer 由后端注入 `V{{ version }}`，实测页面 HTML：`<footer>V3.0.4  ·  by Mr lin</footer>`）
+- 本文档 / README.md / DESIGN.md / DEPLOY.md 均标注 V3.0.4
 
 ---
 
-## 二、已完成功能（V3.0.3）
+## 二、已完成功能（V3.0.4）
 
 ### 2.1 V3 本轮重构
 | 功能 | 实现位置 | 验证方式 |
@@ -180,6 +180,44 @@ SSE 实时流   -> 0.0s queued / 1.0s downloading 0% / 6.0s downloading 100% 4.1
 
 **说明（升级注意）**：文件名规则变更后，旧格式 `标题 [id].mp4` 与新格式 `标题 [id][1080p].mp4` 不一致，升级后首次重下同一视频会真正重新下载一份；旧文件仍在列表中，预览 / 下载 / 删除均不受影响。
 
+### 2.7 代理设置功能（2026-09-27）
+
+**需求**：应用加一个「设置代理」功能，**不明显显示在主界面**，点击后展开；保存的代理统一作用于解析、Cookie 验证与下载，服务重启后保留。
+
+**实现位置**：
+
+- 后端 [app/main.py](file:///e:/ytdl-app/app/main.py)：
+  - `PROXY_FILE = COOKIES_FILE.parent / "proxy.txt"`（与 Cookie 同目录持久化，Docker 挂载 `/config` 即保留）
+  - `_parse_proxy_url()`：白名单协议（http/https/socks4/socks5）+ 主机/端口校验，拒绝控制字符与非法地址
+  - `_mask_proxy_url()`：只返回 `scheme://host:port` 脱敏值，绝不回显用户名/密码
+  - `_read_proxy()` / `_write_proxy()`（临时文件 + `os.replace` + `chmod 0600`）/ `_clear_proxy()`
+  - `_test_proxy()`：用候选代理实测一次 `yt-dlp --print %(title)s` 访问 YouTube，60 秒超时，失败时错误原文中用户名/密码替换为 `***`
+  - 路由：`GET /api/proxy`（查询）、`POST /api/proxy`（保存）、`DELETE /api/proxy`（清除）、`POST /api/proxy/test`（测试连通性）
+  - `_base_args()` 追加 `--proxy <url>`（仅当有配置时）
+- 前端 [templates/index.html](file:///e:/ytdl-app/templates/index.html)：「⚙ 代理设置」卡片默认隐藏（`#proxyBody.hidden`），点击展开；保存 / 测试 / 清除按钮走 `data-act` 事件委托；初始化 `loadProxy()` 显示脱敏状态
+- 测试 [test/test_proxy.py](file:///e:/ytdl-app/test/test_proxy.py)：24 项（URL 校验/脱敏/文件读写/`_base_args` 注入/测试接口打桩）
+
+**验证方式（2026-09-27，WSL `lxsyzd` + Flask dev server）**：
+
+```
+test/test_proxy.py -> 24 项全部通过（含失败路径不泄露密码）
+test/test_v3.py    -> 22 项全部通过（回归无破坏）
+GET /              -> HTTP 200, text/html（首页渲染正常）
+GET /api/proxy     -> {"configured":false,"display":"","ok":true}
+POST /api/proxy    -> {"configured":true,"display":"http://192.168.31.10:7890","ok":true}
+                      （输入 http://nikki:976285@192.168.31.10:7890，密码不回显）
+POST 非法代理      -> HTTP 400（ftp:// 被拒）
+DELETE /api/proxy  -> {"configured":false,"display":"","ok":true}
+```
+
+**设计要点**：
+
+1. **默认隐藏、点击展开**：与 Cookie 面板同款折叠交互，独立 `#proxyBody`，互不干扰
+2. **服务端持久化**：`proxy.txt` 与 Cookie 同目录，重启保留；不依赖浏览器 `localStorage`
+3. **凭据安全**：`0600` 权限 + 全程脱敏；错误日志/API 响应不回显用户名密码
+4. **统一注入**：改 `_base_args()` 一处，解析 / Cookie 验证 / 下载三条链路全部生效，避免「解析走代理、下载不走」的不一致（呼应踩坑 #15：公共参数函数影响面是全量的）
+5. **防 SSRF**：白名单协议 + 合法主机端口校验，代理地址由服务端统一定义，不随每次下载请求携带
+
 ---
 
 ## 三、踩坑记录
@@ -296,6 +334,18 @@ SSE 实时流   -> 0.0s queued / 1.0s downloading 0% / 6.0s downloading 100% 4.1
   3. **「下载成功了但界面没反应」优先怀疑状态回传链路，而不是下载本身**——文件落盘与状态回传是两条独立路径，可以一条通、一条不通
   4. **负载均衡下的间歇性故障要靠统计取证**：单次请求可能碰巧命中，只有连续多次请求的命中率才能把问题钉死
 
+### #17 改代码后只重启容器不生效，必须重建镜像（代理功能整块 404）
+- **现象**：主机 `app/main.py` 已有代理功能的 5 条路由，但运行中的容器里 `GET /api/proxy` 返回 404，前端「⚙ 代理设置」面板形同虚设；而 `test_proxy.py` 仍报 **24 项全通过**
+- **根因**：两个问题叠加
+  1. `deploy/docker-compose.yml` 用 `build: ..` 本地构建镜像，代码是**打进镜像**的（`COPY app ./app`），不是 bind mount 进容器 —— 改完代码只 `docker restart` 不生效，必须重建镜像
+  2. `test_proxy.py` 第六节用 `try/except` 把路由检查的异常吞成「服务未在线，跳过」，404 这种真问题不进 FAIL 统计
+- **定位方式**：容器内 `grep -c PROXY_FILE` 得 **0**；主机与容器 `md5sum app/main.py` 不一致（`6b7b1ddb…` vs `47e1431d…`）；容器创建时间（09-23）早于代理功能开发时间（09-27）
+- **修复**：`cd deploy && docker compose up -d --build` 重建镜像并重建容器。修复后两侧 md5 完全一致、4 条代理路由全部就位，读写删闭环与 `/api/proxy/test`（含凭据脱敏）复验通过
+- **教训**：
+  1. **先问「我改的东西真的进到运行环境了吗」，再怀疑代码逻辑**。代码以哪种方式进入运行环境（COPY 进镜像 / bind mount / 挂载覆盖）决定改动生效的条件
+  2. **文件指纹（md5）是判定「容器跑的是不是最新代码」最快的证据**，比看时间戳、翻日志都直接
+  3. **测试脚本里的「吞异常后跳过」等于给自己发假通行证**：跳过要么显式 SKIP 并计入统计，要么直接判 FAIL，绝不能让环境问题与功能缺陷消失在同一个分支里
+
 ---
 
 ## 四、架构决策
@@ -306,7 +356,7 @@ SSE 实时流   -> 0.0s queued / 1.0s downloading 0% / 6.0s downloading 100% 4.1
 | **V3：页内 Range 预览** | 浏览器原生 `<video>` + Flask `send_file(conditional=True)` 免费获得 seek 能力，无需额外转码 |
 | **V3：Cookie 热上传** | 原「导出→拷文件→重启容器」链路太长，且重启会打断进行中任务。改成网页上传，上传即校验即生效 |
 | **V3：倒计时 3 秒自动下载** | 减少一次点击，倒计时给「后悔窗口」可点取消 |
-| **gunicorn 2 worker** | 保持 V2 配置未改。**已知限制**：跨 worker 不共享 TASKS 字典，理论上两个 worker 各跑一个下载任务，违背串行设计。V4 改为 1 worker + 内部线程队列 |
+| **gunicorn 单进程 + gthread 线程池**（V3.0.3 起） | 任务状态是进程内变量，多 worker 会让 SSE 落到别的 worker、查不到任务（见踩坑 #16）。`-w 1 -k gthread --threads 8` 保证状态唯一，同时让 SSE 只占一个线程而非独占整个 worker |
 | **JSON 存历史** | 数据量小（≤200 条），免维护 |
 | **子进程调 yt-dlp** | 独立进程隔离崩溃；超时可直接 kill；版本升级独立 |
 
@@ -327,7 +377,10 @@ SSE 实时流   -> 0.0s queued / 1.0s downloading 0% / 6.0s downloading 100% 4.1
 ## 六、待办清单
 
 ### P0（必须尽快处理）
-- [ ] **md5 差异问题（未定位根因）** —— 见下文「遗留问题详解」
+- 无
+
+**已结案（2026-09-28）**
+- [x] **cookies.txt md5 / 体积差异** —— 根因已定位：`_verify_cookie()` 调用的 yt-dlp 会在退出时把 cookie jar 回写进 `--cookies` 指定的文件，**不是上传缺陷**。详见第七节与踩坑 #17
 
 ### P1
 - [ ] Cookie 失效时首页黄色横幅提示
@@ -348,31 +401,28 @@ SSE 实时流   -> 0.0s queued / 1.0s downloading 0% / 6.0s downloading 100% 4.1
 
 ## 七、遗留问题详解
 
-### 上传成功路径下 cookies.txt md5 变化（未定位根因）
+### 上传路径下 cookies.txt 内容 / 体积变化（已结案，2026-09-28）
 
 **现象**：
-- 上传前 cookies.txt 与上传后字节数完全相同（8288 字节）
-- 但 md5 不同
-- 内容差异仅在第 7 列（值），长度不变、内容变
+- 上传成功后，落盘文件与上传原文 md5 不一致，字节数也会变（实测 8288 → 6706 字节）
+- 差异形态：跨域重复项被合并、已过期项被剔除、部分 cookie 的值被刷新（如 `VISITOR_INFO1_LIVE`），并新增服务端下发的 cookie（如 `GPS`）
 
-**已排除的假设**：
-1. ❌ 非法 UTF-8 字节 —— 容器内 `iconv -f UTF-8` 检查 0 个错误
-2. ❌ U+FFFD 替换 —— 检查 0 个替换字符
-3. ❌ CRLF ↔ LF 转换 —— 两份文件都是 60 个单独 LF，末字节都是 `_\n`
-4. ❌ 测试脚本自身问题 —— curl 与 Python 两个独立实现都复现，且差异行数还不同（5 行 / 10 行）
+**根因**：`_verify_cookie()` 在写盘之后立刻执行 `yt-dlp --cookies /config/cookies.txt` 做真实视频校验，而 **yt-dlp 在退出时会把内存里的 cookie jar 回写进 `--cookies` 指定的文件**。上传处理本身是 `COOKIES_FILE.write_text(text)` 逐字写入，没有任何过滤或规范化 —— **不是上传缺陷**。
 
-**功能上无影响**：
-- yt-dlp 用上传后的文件真实验证通过
-- 真实视频下载成功（标题正确取回）
-- 线上 Cookie 可用
+**定位方式**（决定性实验：对同一份文件直接跑一次 yt-dlp，观察指纹变化）
+```bash
+md5sum /mnt/e/work/ytdl-app/config/cookies.txt          # 2cd95034…  6706 字节  47 行
+docker exec ytdl-app yt-dlp --cookies /config/cookies.txt --get-title <视频URL>
+md5sum /mnt/e/work/ytdl-app/config/cookies.txt          # e0b1958e…  6785 字节  49 行
+```
+文件里出现 `GPS`（YouTube 下发的 cookie）是「该文件由网络会话产生的 cookie jar 写出」的直接证据。
 
-**怀疑方向（未证实）**：
-- 某处把 multipart 字节当字符串做了非严格编解码
-- Flask `request.files.get("file")` 返回的 BytesIO 在传递过程中可能经过隐式编码
+**影响面与现状**：
+- 不只发生在上传路径：`_base_args()` 每次下载都带 `--cookies`，**每次下载都会重写一次** cookies.txt
+- 关键登录凭证 `SID` / `SAPISID` / `__Secure-1PSID` / `__Secure-3PSID` 回写后仍在，认证可用；`LOGIN_INFO` 会被回写丢弃，而上传校验要求「4 项中命中 ≥3 项」，回写后仍满足
+- `test/test_upload.py` 原先「原样上传后 md5 必须一致」是**无效断言**，已改为「上传成功 + 关键登录凭证仍在」
 
-**用户决定**：不深挖，如实登记。功能可用即可。
-
-**如果未来要查**：在 `_cookie_upload` 的覆盖点前打印 `body.hex()` 与 `file.read().hex()` 对比，定位是哪一步引入差异。
+**如需让原始文件绝对不被改动**：在 `_base_args()` 中把 cookies.txt 复制到一次性临时文件再传给 yt-dlp。当前未采用（保持实现简单，回写对认证无负面影响）。
 
 ---
 
@@ -399,7 +449,7 @@ docker exec -it ytdl-app bash
 
 ### 导出镜像给 NAS / 服务器
 ```bash
-docker save ytdl-app:latest | gzip > ytdl-app-v3.0.3.tar.gz
+docker save ytdl-app:latest | gzip > ytdl-app-v3.0.4.tar.gz
 ```
 
 ### 推送到阿里云 ACR
@@ -407,7 +457,7 @@ docker save ytdl-app:latest | gzip > ytdl-app-v3.0.3.tar.gz
 **推荐：一键脚本（版本号可传参，不用再手改脚本）**
 ```bash
 cd /mnt/e/work/ytdl-app
-bash scripts/_rebuild_push.sh v3.0.3   # 省略参数则用脚本默认版本
+bash scripts/_rebuild_push.sh v3.0.4   # 省略参数则用脚本默认版本
 ```
 脚本流程：停容器 → 清旧镜像 → buildx 无缓存构建（`--provenance=false`）→ 起容器验版本 → 打 ACR tag → 推送版本 tag 与 latest → `imagetools inspect` 远端 manifest 校验。
 
@@ -418,11 +468,11 @@ docker buildx build --no-cache --provenance=false \
     --platform linux/amd64 -t ytdl-app:latest .
 
 # 打 tag
-docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 推送
-docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 反向验证（按 digest 拉取，跳过本机 tag 缓存）
@@ -438,26 +488,26 @@ docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返
 本地镜像   -> ID e26cdede047f（与远端 digest 前缀一致，确认为同一镜像）
 容器复验   -> docker top: 仅 1 个 gunicorn worker；docker logs: Using worker: gthread；curl /api/version: {"ok":true,"version":"3.0.3"}
 ```
-⚠️ ACR 上的 `v3.0.1` 仍是坏的（`--windowsfilenames` 参数名拼写错误，解析/下载/Cookie 验证全失效），NAS 若已拉取该 tag，需更新到 `v3.0.3`。
+⚠️ ACR 上的 `v3.0.1` 仍是坏的（`--windowsfilenames` 参数名拼写错误，解析/下载/Cookie 验证全失效），NAS 若已拉取该 tag，需更新到 `v3.0.4`。
 
 ### NAS / 服务器部署
 ```bash
-# 上传 ytdl-app-v3.0.3.tar.gz 和 docker-compose.server.yml 到服务器
+# 上传 ytdl-app-v3.0.4.tar.gz 和 docker-compose.server.yml 到服务器
 cd /opt/ytdl
 mkdir -p downloads config
-gunzip -c ytdl-app-v3.0.3.tar.gz | docker load
+gunzip -c ytdl-app-v3.0.4.tar.gz | docker load
 docker compose -f docker-compose.server.yml up -d
 ```
 
 ### 版本号递增流程
-1. 改 `app/main.py` 的 `VERSION = "3.0.3"`
-2. 改 `templates/index.html` 的 footer 显示版本
-3. 改 `README.md` / `DESIGN.md` / `PROJECT_STATE.md` 中的版本号
-4. `docker compose up -d --build`
-5. 跑回归测试
+1. 改 `app/main.py` 的 `VERSION = "3.0.4"`
+2. 页面 footer **无需手改**——`templates/index.html` 用 `V{{ version }}`，由后端 `VERSION` 注入
+3. 改 `README.md` / `DESIGN.md` / `PROJECT_STATE.md` / `DEPLOY.md` 中的版本号，并同步变更记录
+4. `cd deploy && docker compose up -d --build`（**改代码后必须重建镜像**，只 `docker restart` 不生效，见踩坑 #17）
+5. 跑回归测试：`test/test_v3.py` + `test/test_proxy.py` + `test/test_upload.py`
 6. `git commit` 中文提交信息
-7. 导出镜像 `ytdl-app-v3.0.3.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
-8. 推送到 ACR：`docker buildx build --no-cache --provenance=false ...`（见上一节「推送到阿里云 ACR」）
+7. 导出镜像 `ytdl-app-v3.0.4.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
+8. 推送到 ACR：`bash scripts/_rebuild_push.sh v3.0.4`（见上一节「推送到阿里云 ACR」）
 
 ### 桌面工具打包（tools/cookie-exporter）
 ```powershell
@@ -524,6 +574,7 @@ git push origin tool-v1.0.0
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| V3.0.4 | 2026-09-28 | **新增代理设置功能**（见 2.7）：`GET/POST/DELETE /api/proxy` + `POST /api/proxy/test`，`_base_args()` 统一注入 `--proxy`；`proxy.txt` 与 Cookie 同目录持久化（权限 600）；代理凭据全程脱敏（`_mask_proxy_url`），错误日志替换用户名/密码为 `***`；前端「⚙ 代理设置」默认隐藏、点击展开；新增 `test/test_proxy.py`。**修复**：①**容器跑旧代码**——compose 用 `build: ..` 把代码 `COPY` 进镜像，改完只 `docker restart` 不生效，代理 5 条路由此前全为 404，重建镜像后复验读写删闭环与 `/api/proxy/test` 通过（新增踩坑 #17）；②`test/test_upload.py` 的**无效断言**「原样上传后 md5 必须一致」不成立（`_verify_cookie()` 调用的 yt-dlp 退出时回写 `--cookies` 文件），改为「上传成功 + 关键登录凭证仍在」；③`test/test_proxy.py` 第六节吞异常盲区——服务不可达由「跳过」改为判 FAIL。全量回归 `test_v3.py` 22 项 + `test_proxy.py` 25 项 + `test_upload.py` 5 项全通过；第七节 md5 遗留问题结案、P0 清空；`DESIGN.md` 接口清单/安全问题/里程碑、`README.md` API 表与更新日志、`DEPLOY.md` 第五章同步 |
 | 文档 | 2026-09-24 | 新增「桌面工具发布规范」：exe 只作为 GitHub Release 附件发布、不入 git 仓库（`DESIGN.md` 8.7 讲原则 + 本文档第八章讲命令 + 协作约定一条）；README 与 2.4 节补 Release 下载链接与 SHA256 校验值 |
 | V3.0.3 | 2026-09-24 | **修复「页面进度不动、文件其实已下载」**：gunicorn 由 `-w 2`（sync）改为 `-w 1 -k gthread --threads 8`，消除多 worker 进程内状态分裂；输出文件名加入画质标记，换画质可真正重下；识别 `has already been downloaded` 并如实上报 `skipped`，不再虚增历史。本机实测：单 worker、任务状态 20/20 命中（修复前 15/20）、SSE 实时进度正常、720p 真实下载 20.03 MB、同画质重下 skipped。新增踩坑 #16 |
 | V3.0.2 | 2026-09-24 | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` → `--windows-filenames`，恢复解析 / 下载 / Cookie 验证三条链路；版本号六处同步；容器重建后完成真实下载取证（MP3 9,143,012 字节）；新增踩坑 #15（参数名拼写 + 未验证发版）；镜像推送 ACR（v3.0.2 + latest，digest `fc8c0c87…`，无 attestation）；发布脚本 `_rebuild_push.sh` 版本号参数化 |

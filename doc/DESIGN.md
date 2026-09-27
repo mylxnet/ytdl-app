@@ -1,6 +1,6 @@
 # YouTube 下载器 — 设计方案 V3
 
-> 版本：V3.0.3（2026-09-24）
+> 版本：V3.0.4（2026-09-28）
 > 现状：V3 已上线并验证（Flask + yt-dlp + Docker，NAS 部署 / 浏览器访问 / 文件回传本机）
 > 本文档：完整设计方案 + 关键问题清单，作为后续演进与部署的依据
 > by Mr lin
@@ -85,6 +85,7 @@
 | 文件删除（带确认） | ✅ |
 | Cookie 登录态 + Node JS 挑战，绕过 YouTube 机器人验证 | ✅ |
 | **Cookie 热上传**：网页上传 cookies.txt，校验→备份→覆盖→真实视频验证→失败回滚 | ✅ |
+| **代理设置**：网页保存/清除，`_base_args()` 统一注入 `--proxy`（解析/验证/下载共用），支持测试连通性 | ✅ |
 | 历史记录 | ✅ |
 | 版本号三处一致（后端 `/api/version` / 页面 footer / 文档） | ✅ |
 
@@ -95,6 +96,7 @@
 | ❌ 删除「开始下载」按钮 | 改为解析后倒计时 3 秒自动开始 |
 | ❌ 下线 `GET /api/dirs` | 子目录接口已无消费者（回归测试已验证返回 404） |
 | ✅ 新增 `POST /api/cookie-upload` | 热上传 Cookie |
+| ✅ 新增 `GET/POST/DELETE /api/proxy`、`POST /api/proxy/test` | 代理配置查询/保存/清除/连通性测试 |
 | ✅ 新增 `GET  /api/preview` | 页内预览（Range） |
 | ✅ 新增 `GET  /api/download-file` | 下载回本机（attachment） |
 | 🔁 删除文件统一走 `DELETE /api/file` | 前端与回归测试均以 `/api/file` 为唯一入口 |
@@ -146,6 +148,8 @@
 | 子进程注入 | 参数全部列表传参（不经 shell） | 保持 |
 | 磁盘耗尽 | 未处理 | P3：提交前查剩余空间 |
 | Cookie 泄露 | cookies.txt 含 Google 登录凭证，等价账号 | 权限 600；不入 git（.gitignore）；上传时先备份再覆盖 |
+| **代理凭据泄露** | 代理如含 `user:pass@host:port`，凭据等于账号密码 | 配置 `proxy.txt` 权限 600；`GET /api/proxy` 与错误日志只回脱敏 `scheme://host:port`，绝不回显用户名/密码 |
+| **代理 SSRF** | 若让任意代理地址进每次下载请求，可被用于内网探测 | 只允许 `_parse_proxy_url()` 白名单协议（http/https/socks4/socks5）+ 合法主机端口校验；服务端统一定义，不随请求携带 |
 | **上传接口滥用** | 1MB 上限 + 格式校验（≥10 条、4 类登录凭证 ≥3 个命中）+ 仅接受 .txt | 保持 |
 | 公网合规 | 下载 YouTube 内容视地区/内容涉版权 | 仅自用；不在公网开放目录浏览/下载 |
 
@@ -156,7 +160,7 @@
 | yt-dlp 卡死（进程 hang） | 任务永久排队 | 已有 `proc.wait(timeout=3600)`；后续加进度 5 分钟无变化自动 kill |
 | 大文件占满带宽 | 家用网络卡顿 | 预留 `--limit-rate` 环境变量配置 |
 | 磁盘写满中途失败 | 半成品 .part 文件 | yt-dlp 自带 .part 机制；加定期清理孤儿 .part |
-| **gunicorn 2 worker** | 双任务并发下载（违背串行设计） | 当前实际是「gunicorn 2 worker + 每个 worker 内部线程队列」，**跨 worker 不共享 TASKS**；已知限制，V4 改为 1 worker |
+| ~~gunicorn 2 worker~~ **已修复（V3.0.3）** | 双任务并发下载、SSE 落到另一个 worker 导致进度不动（见踩坑 #16） | 已改为 `-w 1 -k gthread --threads 8`：单进程保证 `TASKS` 唯一，线程池避免一条 SSE 独占整个 worker |
 | 容器重启丢任务 | TASKS 在内存 | 可接受（单人使用） |
 | 时区/文件名乱码 | 容器默认无中文 locale | 镜像内设 `LANG=C.UTF-8` + `TZ=Asia/Shanghai`（已做 TZ） |
 
@@ -196,6 +200,10 @@
 | DELETE | `/api/file?name=` | 删除文件 |
 | POST | `/api/open-folder` | 返回下载目录绝对路径 |
 | POST | `/api/cookie-upload` | 热上传 cookies.txt（multipart/form-data，字段名 `file`） |
+| GET | `/api/proxy` | 查询当前代理配置（只返回脱敏展示值） |
+| POST | `/api/proxy` | 保存代理配置（校验协议/主机/端口后持久化） |
+| DELETE | `/api/proxy` | 清除代理配置 |
+| POST | `/api/proxy/test` | 用候选代理实际访问一次 YouTube 测连通性与认证 |
 
 ---
 
@@ -232,6 +240,7 @@ cd /mnt/e/work/ytdl-app && docker compose up -d
 | V3.0.1（已发版，不可用） | 特殊字符文件名下载修复（参数名拼写错误，见 V3.0.2）；项目目录结构重组 | ⚠️ 已被 V3.0.2 取代 |
 | **V3.0.2（已完成，本机实测通过）** | **修复 V3.0.1 的 yt-dlp 参数名错误（`--windowsfilenames` → `--windows-filenames`），恢复解析 / 下载 / Cookie 验证；真实下载 MP3 取证** | ✅ |
 | **V3.0.3（已完成，本机实测通过）** | **修复「页面进度不动、文件其实已下载」：gunicorn 改单进程 + gthread，消除多 worker 进程内状态分裂；文件名加入画质标记，换画质可真正重下；已存在文件如实上报 `skipped`** | ✅ |
+| **V3.0.4（已完成，本机复验通过）** | **新增代理设置：网页保存 / 清除 / 连通性测试，`_base_args()` 统一注入 `--proxy`（解析 / 验证 / 下载共用），`proxy.txt` 持久化；修复「容器跑旧代码导致代理路由 404」与两处测试缺陷** | ✅ |
 | **桌面工具 V1.0.0（已完成）** | **Cookie 导出器：浏览器 Cookie → cookies.txt，单文件 exe 交付** | ✅ |
 | V4.0 | Cookie 健康横幅 + 失败自动重试 + 播放列表 + 访问密码 | 待排期 |
 | V4.x | 通知 + 磁盘预警 + 字幕 | 按需 |
@@ -339,3 +348,4 @@ powershell -ExecutionPolicy Bypass -File tools\cookie-exporter\build\build.ps1
 | V3.0.2 | 2026-09-24 | — | — | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` 更正为 `--windows-filenames`，恢复 `/api/probe`、`/api/download`、`/api/cookie-upload` 三条链路 | 版本号同步六处（后端 / 页面 footer / README / DESIGN / PROJECT_STATE / DEPLOY） |
 | V3.0.3 | 2026-09-24 | 前端新增 `skipped` 状态提示「该画质已存在，未重复下载」 | gunicorn 由 `-w 2` 改为 `-w 1 -k gthread --threads 8`：单进程保证任务状态唯一，线程池避免 SSE 独占 worker | ①「进度不动、文件已下载」——多 worker 各持一份 `TASKS`，SSE 落到另一 worker 即刻返回 `gone`；② 换画质重下被静默跳过（文件名不含画质）；③ 跳过时误报 done + 虚增历史（现识别 `has already been downloaded` → `skipped`） | 输出文件名模板加入画质标记 `[1080p]/[2160p]/[720p]/[audio]`；`/api/stream` 终止条件补 `skipped` |
 | 桌面工具 V1.0.0 | 2026-09-24 | `tools/cookie-exporter` 独立子模块：浏览器 Cookie → cookies.txt，单文件 exe（18.7 MB，目标机器免装 Python）；浏览器/profile 扫描；登录态三态验证；单实例防重复启动；应用图标 | 只保留 youtube.com / google.com 域（710 → 58 条），避免泄露整机账号凭证；提前拦截未选保存路径；浅色界面 + 白底灰边按钮 | 子线程直接操作 Tkinter 崩溃（改队列 + 主线程轮询）；网络抖动被误判 Cookie 失效（改三态 + 重试 3 次） | 打包脚本 `build.ps1` 固化保留（UTF-8 BOM）；`.gitignore` 忽略 exe 产物但保留打包素材 |
+| V3.0.4 | 2026-09-28 | 网页端代理设置（默认隐藏、点击展开）：`GET/POST/DELETE /api/proxy` 查询/保存/清除 + `POST /api/proxy/test` 连通性测试；`_base_args()` 统一注入 `--proxy`（解析/验证/下载共用）；`proxy.txt` 与 Cookie 同目录持久化 | 代理凭据脱敏（`_mask_proxy_url` 只回 `scheme://host:port`）；白名单协议校验防 SSRF；配置权限 600；保存后无需重启即生效 | ①**容器跑旧代码导致代理 5 条路由全部 404**（compose 把代码 `COPY` 进镜像，改完只 `docker restart` 不生效，须 `up -d --build`，见踩坑 #17）；② yt-dlp 错误原文含完整代理 URL 导致密码泄露（改为替换用户名/密码为 `***`）；③`test_upload.py` 无效断言（md5 必一致）改为「上传成功 + 关键凭证仍在」；④`test_proxy.py` 第六节吞异常盲区改为不可达即判 FAIL | 新增 `test/test_proxy.py`（25 项：URL 校验/脱敏/读写/`_base_args` 注入/路由闭环）；接口清单与 README 同步；DEPLOY.md 第五章同步用户操作说明 |

@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.3** · by Mr lin（配套桌面工具 V1.0.0）
+**版本：V3.0.4** · by Mr lin（配套桌面工具 V1.0.0）
 
 ---
 
@@ -50,22 +50,22 @@ docker compose up -d --build
 
 ```bash
 mkdir -p downloads config
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 docker run -d --name ytdl-app --restart unless-stopped \
   -p 8765:8765 \
   -v "$PWD/downloads":/downloads \
   -v "$PWD/config":/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 ```
 
 **离线部署（NAS 无公网）**
 
 ```bash
 # 联网机器导出
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3 -o ytdl-app-v3.0.3.tar
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4 -o ytdl-app-v3.0.4.tar
 # 拷到 NAS 后加载
-docker load -i ytdl-app-v3.0.3.tar
+docker load -i ytdl-app-v3.0.4.tar
 ```
 
 详见 [DEPLOY.md](./doc/DEPLOY.md)。
@@ -111,8 +111,9 @@ ytdl-app/
 │   └── docker-compose.server.yml    # NAS / 服务器部署
 ├── test/                    # 测试代码
 │   ├── test_v3.py
-│   ├── test_e2e.sh
-│   └── test_upload.py
+│   ├── test_proxy.py
+│   ├── test_upload.py
+│   └── test_e2e.sh
 ├── tools/                   # 用户运维工具
 │   ├── 刷新Cookie.bat       # Windows 一键导出 Cookie
 │   ├── 刷新Cookie.ps1
@@ -136,7 +137,7 @@ ytdl-app/
 | 层 | 选型 | 版本 |
 |---|---|---|
 | 后端 | Flask | 3.1.3 |
-| WSGI 服务器 | gunicorn | 26.2.0（2 worker） |
+| WSGI 服务器 | gunicorn | 26.2.0（1 worker + gthread 线程池） |
 | 下载核心 | yt-dlp | 2026.08.19 |
 | 音视频合并 | ffmpeg | 7.1.5 |
 | JS 挑战运行时 | Node.js | 22.23.2 |
@@ -161,6 +162,10 @@ ytdl-app/
 | DELETE | `/api/file?name=` | 删除文件 |
 | POST | `/api/open-folder` | 返回下载目录路径 |
 | POST | `/api/cookie-upload` | 上传 Cookie（multipart/form-data，字段名 `file`） |
+| GET | `/api/proxy` | 查询代理配置（只返回脱敏值） |
+| POST | `/api/proxy` | 保存代理配置 |
+| DELETE | `/api/proxy` | 清除代理配置 |
+| POST | `/api/proxy/test` | 测试代理连通性 |
 
 ---
 
@@ -178,6 +183,23 @@ ytdl-app/
 ```bash
 cp config/cookies.txt /path/to/backup/cookies.txt.$(date +%Y%m%d)
 ```
+
+---
+
+## 代理设置（可选）
+
+**用途**：网络环境不可直达 YouTube 时（如服务器/云主机 IP 信誉差、地区限制），为解析、Cookie 验证和下载统一走代理。
+
+**网页操作**：
+1. 页面底部「⚙ 代理设置」→ 点击展开（默认隐藏）
+2. 输入代理地址，例如 `http://192.168.31.10:7890`、`socks5://127.0.0.1:1080`，或带认证的 `http://user:pass@host:port`
+3. 点「测试」可立即验证连通性与认证（后端用该代理实测访问 YouTube）
+4. 点「保存」即生效，**无需重启**；点「清除」恢复直连
+
+**说明**：
+- 配置持久化在 `config/proxy.txt`（与 Cookie 同目录），容器重启后保留
+- 界面只显示脱敏后的 `scheme://host:port`，**不会显示代理用户名/密码**
+- 支持协议：`http` / `https` / `socks4` / `socks5`
 
 ---
 
@@ -234,6 +256,29 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 ---
 
 ## 更新日志
+
+### V3.0.4（2026-09-28）
+
+**新增**
+- **网页端代理设置**：页面「⚙ 代理设置」入口默认隐藏、点击展开；支持保存 / 清除 / 连通性测试
+- 后端 `GET/POST/DELETE /api/proxy` + `POST /api/proxy/test`
+- `_base_args()` 统一注入 `--proxy`，解析、Cookie 验证、下载共用同一代理，无需重启
+- 配置持久化 `config/proxy.txt`（与 Cookie 同目录，权限 600）
+- 新增 `test/test_proxy.py`（25 项：URL 校验 / 脱敏 / 文件读写 / `_base_args` 注入 / 路由闭环）
+
+**修复**
+- **「设置代理后接口仍是 404」**：代码是以 `COPY` 打进镜像的（不是挂载），改完只 `docker restart` 不生效，必须 `cd deploy && docker compose up -d --build` 重建镜像。定位证据：容器内 `grep -c PROXY_FILE` = 0、容器内外 `app/main.py` 的 md5 不一致、容器创建时间早于功能开发时间
+- **`test_upload.py` 无效断言**：原以「原样上传后 md5 必须一致」判定，必然假失败——`_verify_cookie()` 调用的 yt-dlp 退出时会把 cookie jar **回写**进 `--cookies` 文件（合并跨域重复项、剔除已过期项、新增服务端下发的 `GPS`）。改为「上传成功 + 解析条目数一致 + 关键登录凭证（`SID` / `SAPISID` / `__Secure-1PSID` / `__Secure-3PSID`）仍在」
+- **`test_proxy.py` 吞异常盲区**：第六节原用 `try/except` 把路由检查的异常吞成「服务未在线，跳过」，404 这类真问题不进 FAIL 统计。改为服务不可达即判 FAIL
+
+**安全**
+- 代理凭据全程脱敏：界面 / API / 错误日志只显示 `scheme://host:port`，用户名密码不回显
+- 白名单协议（http/https/socks4/socks5）+ 主机端口校验，防 SSRF
+
+**实测验证（2026-09-28，容器重建后）**
+- 代理接口 7 项全对：未配置 `{"configured":false}` → 保存合法代理 `200`（脱敏显示 `http://127.0.0.1:7890`）→ 非法 `ftp://` 返回 `400` 且不污染状态 → 清除 `200`
+- `POST /api/proxy/test`（含凭据 `http://user:secret@127.0.0.1:7890`）2.8 秒返回 `{"ok":false,"message":"代理不可用：[Errno 111] Connection refused…"}`，**响应中无凭据泄露**
+- 三项测试全通过：`test_proxy.py` PASS=25 / `test_upload.py` PASS=5 / `test_v3.py` PASS=22，FAIL 均为 0
 
 ### V3.0.3（2026-09-24）
 

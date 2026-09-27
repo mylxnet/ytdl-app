@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from flask import Flask, Response, jsonify, render_template, request, send_file, stream_with_context
 from werkzeug.utils import secure_filename
@@ -25,13 +26,18 @@ COOKIE_BACKUP = COOKIES_FILE.with_name(COOKIES_FILE.name + ".bak")
 NODE_PATH = os.environ.get("NODE_PATH", "")
 HISTORY_FILE = DOWNLOAD_DIR / ".history.json"
 
-VERSION = "3.0.3"
+VERSION = "3.0.4"
 
 # Cookie 上传限制：正常 cookies.txt 只有几 KB，1MB 足够且能挡住异常大文件
 MAX_COOKIE_SIZE = 1024 * 1024
 # YouTube 登录凭证关键字段（Netscape 格式，Tab 分隔第 7 列为 cookie 名）
 AUTH_COOKIES = ("SID", "SAPISID", "__Secure-1PSID", "LOGIN_INFO")
 COOKIE_VERIFY_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+# 代理配置：与 Cookie 同目录持久化，仅允许明确协议，避免任意参数进入命令行
+PROXY_FILE = COOKIES_FILE.parent / "proxy.txt"
+PROXY_PROTOCOLS = ("http", "https", "socks4", "socks5")
+MAX_PROXY_SIZE = 4096
 
 # 预览/播放支持的后缀
 VIDEO_EXT = {".mp4", ".webm", ".m4v", ".ogv", ".mkv", ".avi", ".mov"}
@@ -68,8 +74,111 @@ def _yt_dlp_cmd() -> str:
     return os.environ.get("YTDLP_PATH", "yt-dlp")
 
 
+# ---------------- 代理配置 ----------------
+
+def _parse_proxy_url(value: str) -> str:
+    """校验并规范化代理 URL，返回完整地址供 yt-dlp 使用。
+
+    仅允许 http/https/socks4/socks5，要求合法主机与 1-65535 端口；
+    拒绝控制字符、缺失主机、非法端口和其他协议。
+    带认证的 URL（user:pass@host:port）保留认证字段，但任何对外展示
+    都必须走 _mask_proxy_url()，不得把认证字段返回给前端或日志。
+    """
+    raw = (value or "").strip()
+    if not raw:
+        raise ValueError("代理地址不能为空")
+    if len(raw) > MAX_PROXY_SIZE:
+        raise ValueError(f"代理地址过长（>{MAX_PROXY_SIZE} 字符）")
+    if any(ord(c) < 32 for c in raw):
+        raise ValueError("代理地址包含控制字符")
+    parts = urlsplit(raw)
+    scheme = (parts.scheme or "").lower()
+    if scheme not in PROXY_PROTOCOLS:
+        raise ValueError(f"仅支持 {'/'.join(PROXY_PROTOCOLS)} 代理，如 http://127.0.0.1:7890")
+    if not parts.hostname:
+        raise ValueError("代理缺少主机名")
+    if parts.port is not None and not (1 <= parts.port <= 65535):
+        raise ValueError("代理端口必须在 1-65535 之间")
+    return raw
+
+
+def _mask_proxy_url(value: str) -> str:
+    """返回仅含协议、主机、端口的脱敏展示值，绝不包含用户名/密码。"""
+    parts = urlsplit((value or "").strip())
+    host = parts.hostname or ""
+    if parts.port:
+        return f"{parts.scheme}://{host}:{parts.port}"
+    return f"{parts.scheme}://{host}"
+
+
+def _read_proxy() -> str | None:
+    """读取当前代理配置；文件不存在、损坏或超限时按未配置处理。"""
+    try:
+        text = PROXY_FILE.read_text(encoding="utf-8").strip()
+        if len(text) > MAX_PROXY_SIZE:
+            return None
+        return _parse_proxy_url(text)
+    except Exception:
+        return None
+
+
+def _write_proxy(value: str) -> str:
+    """校验并持久化代理；临时文件 + 原子替换 + 0600 权限。"""
+    url = _parse_proxy_url(value)
+    PROXY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = PROXY_FILE.with_name(PROXY_FILE.name + ".tmp")
+    tmp.write_text(url + "\n", encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, PROXY_FILE)
+    return url
+
+
+def _clear_proxy() -> None:
+    """删除代理配置文件；只删代理文件，不影响 Cookie 文件。"""
+    try:
+        PROXY_FILE.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _test_proxy(value: str) -> tuple[bool, str]:
+    """用候选代理实际访问一次 YouTube，验证连通性与认证；不写入配置。
+
+    返回 (是否可用, 脱敏说明)。命令复用 _base_args()，但会先移除
+    _base_args() 里已有的 --proxy（测试候选代理时不应受已保存代理干扰），
+    再注入候选代理执行 yt-dlp --print 抓标题；超时 60 秒。
+    """
+    url = _parse_proxy_url(value)
+    cmd = _base_args()
+    try:
+        i = cmd.index("--proxy")
+        del cmd[i:i + 2]
+    except ValueError:
+        pass
+    cmd += ["--proxy", url, "--print", "%(title)s", COOKIE_VERIFY_URL]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return False, "测试超时（60 秒内无响应），代理可能不可达"
+    out = (r.stdout or "").strip()
+    if r.returncode == 0 and out:
+        return True, f"代理可用，成功获取视频标题：{out}"
+    tail = (r.stderr or "").strip().splitlines()
+    detail = tail[-1][:300] if tail else f"exit {r.returncode}"
+    parts = urlsplit(url)
+    if parts.username:
+        detail = detail.replace(parts.username, "***")
+    if parts.password:
+        detail = detail.replace(parts.password, "***")
+    detail = detail.replace(url, _mask_proxy_url(url))
+    return False, f"代理不可用：{detail}"
+
+
 def _base_args() -> list[str]:
     args = [_yt_dlp_cmd(), "--no-warnings", "--newline", "--no-color", "--windows-filenames"]
+    proxy = _read_proxy()
+    if proxy:
+        args += ["--proxy", proxy]
     if COOKIES_FILE.exists():
         args += ["--cookies", str(COOKIES_FILE)]
     if NODE_PATH:
@@ -184,6 +293,55 @@ def api_cookie_upload():
             except Exception:
                 pass
         return jsonify(ok=False, error=f"写入失败，已回滚：{e}"), 500
+
+
+# ---------------- 代理设置 ----------------
+
+@app.get("/api/proxy")
+def api_proxy_get():
+    """查询当前代理配置；只返回脱敏展示值，不返回密码或完整认证 URL。"""
+    url = _read_proxy()
+    return jsonify(ok=True, configured=bool(url), display=_mask_proxy_url(url) if url else "")
+
+
+@app.post("/api/proxy")
+def api_proxy_set():
+    """保存代理配置；校验通过后持久化，立即作用于后续 yt-dlp 命令。"""
+    data = request.json or {}
+    value = data.get("proxy", "")
+    try:
+        url = _write_proxy(value)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except OSError as e:
+        return jsonify(ok=False, error=f"写入代理配置失败：{e}"), 500
+    return jsonify(ok=True, configured=True, display=_mask_proxy_url(url))
+
+
+@app.delete("/api/proxy")
+def api_proxy_delete():
+    """清除代理配置；不影响 Cookie 文件。"""
+    try:
+        _clear_proxy()
+    except OSError as e:
+        return jsonify(ok=False, error=f"清除代理配置失败：{e}"), 500
+    return jsonify(ok=True, configured=False, display="")
+
+
+@app.post("/api/proxy/test")
+def api_proxy_test():
+    """用候选代理实际访问一次 YouTube，验证连通性与认证；不写入配置。"""
+    data = request.json or {}
+    value = (data.get("proxy") or _read_proxy() or "").strip()
+    if not value:
+        return jsonify(ok=False, error="请先输入代理地址或保存代理后再测试"), 400
+    try:
+        ok, msg = _test_proxy(value)
+        return jsonify(ok=ok, message=msg)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except OSError as e:
+        return jsonify(ok=False, error=f"测试失败：{e}"), 500
 
 
 # ---------------- 文件安全解析 ----------------

@@ -148,6 +148,25 @@ footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; l
   </div>
 </div>
 
+<!-- 代理设置（默认隐藏，点击标题按钮展开，与 Cookie 面板独立） -->
+<div class="card cookie-card">
+  <div class="cookie-head">
+    <span class="cookie-title">代理 <span class="pill">可选</span></span>
+    <button class="btn-tiny" style="margin-left:auto;" data-act="toggle-proxy" aria-expanded="false">
+      ⚙ 代理设置 <span class="chev">▾</span>
+    </button>
+  </div>
+  <div class="cookie-body hidden" id="proxyBody">
+    <div class="row">
+      <input id="proxyUrl" type="url" placeholder="http://127.0.0.1:7890 或 socks5://127.0.0.1:1080">
+      <button class="mini" data-act="save-proxy">保存</button>
+      <button class="mini ghost" data-act="test-proxy">测试</button>
+      <button class="mini ghost" data-act="clear-proxy">清除</button>
+    </div>
+    <div class="status" id="proxyMsg"></div>
+  </div>
+</div>
+
 <!-- 用法说明 -->
 <div class="card">
   <h2>用法说明</h2>
@@ -158,6 +177,7 @@ footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; l
     <li><b>保存到自己电脑</b>：点 <b>[下载]</b>，浏览器弹出「另存为」，选择本地目录即可（文件已存在服务器磁盘，下载是把它拷回本机）。</li>
     <li><b>删除</b>：点 <b>[删除]</b> 并确认，从服务器磁盘移除该文件。</li>
     <li><b>Cookie 失效</b>：所有视频都报 <code>Sign in to confirm you're not a bot</code> 时，用本机浏览器登录 youtube.com 导出 cookies.txt，在本页点「⚙ Cookie 设置」展开后上传，<b>无需重启</b>。</li>
+    <li><b>代理（可选）</b>：网络不可达时可点「⚙ 代理设置」展开，填写 <code>http://主机:端口</code> 或 <code>socks5://主机:端口</code> 后保存；代理同时用于解析、Cookie 验证和下载，清除后恢复直连。</li>
     <li><b>队列串行</b>：同时只下载 1 个任务，避免触发 YouTube 风控；下载中刷新页面不影响任务继续。</li>
   </ol>
 </div>
@@ -328,6 +348,10 @@ document.addEventListener("click", e => {
   else if (act === "dl-current") downloadCurrent();
   else if (act === "close") closeModal();
   else if (act === "toggle-cookie") toggleCookie();
+  else if (act === "toggle-proxy") toggleProxy();
+  else if (act === "save-proxy") saveProxy();
+  else if (act === "test-proxy") testProxy();
+  else if (act === "clear-proxy") clearProxy();
 });
 
 function toggleCookie() {
@@ -338,6 +362,86 @@ function toggleCookie() {
   if (btn) {
     btn.querySelector(".chev").textContent = isOpen ? "▴" : "▾";
     btn.setAttribute("aria-expanded", String(isOpen));
+  }
+}
+
+// ---------------- 代理设置 ----------------
+function toggleProxy() {
+  const body = document.getElementById("proxyBody");
+  const btn = document.querySelector('button[data-act="toggle-proxy"]');
+  body.classList.toggle("hidden");
+  const isOpen = !body.classList.contains("hidden");
+  if (btn) {
+    btn.querySelector(".chev").textContent = isOpen ? "▴" : "▾";
+    btn.setAttribute("aria-expanded", String(isOpen));
+  }
+}
+
+async function loadProxy() {
+  const msg = document.getElementById("proxyMsg");
+  try {
+    const r = await fetch("/api/proxy");
+    const j = await r.json();
+    if (j.configured) {
+      msg.className = "status ok";
+      msg.textContent = "当前代理：" + (j.display || "已配置");
+    } else {
+      msg.className = "status";
+      msg.textContent = "未配置代理（可选，用于解析 / 验证 / 下载）";
+    }
+  } catch(e) {
+    msg.className = "status err";
+    msg.textContent = "✗ 读取代理配置失败：" + e.message;
+  }
+}
+
+async function saveProxy() {
+  const input = document.getElementById("proxyUrl");
+  const value = input.value.trim();
+  const msg = document.getElementById("proxyMsg");
+  if (!value) { msg.className = "status err"; msg.textContent = "请输入代理地址"; return; }
+  try {
+    const r = await fetch("/api/proxy", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({proxy: value})});
+    const j = await r.json();
+    if (!j.ok) { msg.className = "status err"; msg.textContent = "✗ " + (j.error || "保存失败"); return; }
+    msg.className = "status ok";
+    msg.textContent = "✓ 已保存代理：" + (j.display || "");
+    input.value = "";
+  } catch(e) {
+    msg.className = "status err";
+    msg.textContent = "✗ " + e.message;
+  }
+}
+
+async function testProxy() {
+  const input = document.getElementById("proxyUrl");
+  const value = input.value.trim();
+  const msg = document.getElementById("proxyMsg");
+  msg.className = "status";
+  msg.textContent = "正在测试代理连通性（需 60 秒内完成）…";
+  const btn = document.querySelector('button[data-act="test-proxy"]');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch("/api/proxy/test", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({proxy: value})});
+    const j = await r.json();
+    if (j.ok) { msg.className = "status ok"; msg.textContent = "✓ " + (j.message || "代理可用"); }
+    else { msg.className = "status err"; msg.textContent = "✗ " + (j.error || "测试失败"); }
+  } catch(e) { msg.className = "status err"; msg.textContent = "✗ " + e.message; }
+  finally { if (btn) btn.disabled = false; }
+}
+
+async function clearProxy() {
+  const msg = document.getElementById("proxyMsg");
+  if (!confirm("确定清除代理设置？")) return;
+  try {
+    const r = await fetch("/api/proxy", {method:"DELETE"});
+    const j = await r.json();
+    if (!j.ok) { msg.className = "status err"; msg.textContent = "✗ " + (j.error || "清除失败"); return; }
+    msg.className = "status ok";
+    msg.textContent = "✓ 已清除代理，后续请求不再走代理";
+  } catch(e) {
+    msg.className = "status err";
+    msg.textContent = "✗ " + e.message;
   }
 }
 
@@ -364,6 +468,7 @@ document.getElementById("cookieFile").addEventListener("change", async function(
 // ---------------- 初始化 ----------------
 document.getElementById("url").addEventListener("keydown", e => { if (e.key === "Enter") probe(); });
 loadFiles();
+loadProxy();
 </script>
 </body>
 </html>

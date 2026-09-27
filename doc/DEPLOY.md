@@ -1,8 +1,12 @@
 # YouTube 下载器 — 部署文档
 
-> 版本：**V3.0.3**（2026-09-24）  
+> 版本：**V3.0.4**（2026-09-28）  
 > 署名：by Mr lin  
 > 目标环境：家用 NAS（Docker / Docker Compose）
+
+---
+
+> **2026-09-27 新增：代理设置功能（可选）**。本部署文档已同步补充「五、代理设置」章节。
 
 ---
 
@@ -20,8 +24,8 @@
 # 1. 建工作目录
 mkdir -p ~/ytdl-app/downloads && cd ~/ytdl-app
 
-# 2. 拉镜像（v3.0.3 = 固定版本；latest = 最新）
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+# 2. 拉镜像（v3.0.4 = 固定版本；latest = 最新）
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 
 # 3. 起容器（下面命令见「完整命令」章节）
 docker run -d \
@@ -31,7 +35,7 @@ docker run -d \
   -v ~/ytdl-app/downloads:/downloads \
   -v ~/ytdl-app/config:/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 ```
 
 ### 访问
@@ -56,7 +60,7 @@ docker run -d \
   -v ~/ytdl-app/downloads:/downloads \
   -v ~/ytdl-app/config:/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 ```
 
 ### 2.2 Docker Compose 部署（推荐）
@@ -66,7 +70,7 @@ docker run -d \
 ```yaml
 services:
   ytdl:
-    image: registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+    image: registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
     container_name: ytdl-app
     restart: unless-stopped
     mem_limit: 2g
@@ -93,16 +97,16 @@ docker compose up -d
 1. 在联网机器上 `docker pull` + `docker save`：
 
 ```bash
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3 \
-  -o ytdl-app-v3.0.3.tar.gz  # 约 400MB 压缩后
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4 \
+  -o ytdl-app-v3.0.4.tar.gz  # 约 400MB 压缩后
 ```
 
 2. 拷到 NAS 后加载：
 
 ```bash
-docker load -i ytdl-app-v3.0.3.tar.gz
-docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3 ...
+docker load -i ytdl-app-v3.0.4.tar.gz
+docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4 ...
 ```
 
 ---
@@ -114,7 +118,8 @@ docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3 ...
 ├── docker-compose.yml        # 你创建
 ├── downloads/                # 下载的视频落这里（挂到容器 /downloads）
 └── config/
-    └── cookies.txt           # 可选，Cookie 过期时上传（挂载后由容器读写）
+    ├── cookies.txt           # 可选，Cookie 过期时上传（挂载后由容器读写）
+    └── proxy.txt             # 可选，代理设置（网页保存后由容器读写，权限 600）
 ```
 
 ---
@@ -146,7 +151,37 @@ scp cookies.txt nasuser@<NAS>:/path/to/ytdl-app/config/cookies.txt
 
 ---
 
-## 五、常用运维命令
+## 五、代理设置（可选）
+
+> 用于网络不可直连 YouTube 的场景。代理**同时作用于解析、Cookie 验证与下载**，保存后立即生效，无需重启容器。
+
+### 5.1 支持的代理格式
+
+- `http://主机:端口`
+- `https://主机:端口`
+- `socks4://主机:端口`
+- `socks5://主机:端口`
+- 需要用户名/密码时：`http://用户名:密码@主机:端口`（yt-dlp 原生支持）
+
+> 注意：不支持的协议（如 `ftp`）、缺失主机、端口超出 1-65535 会被拒绝并提示。
+
+### 5.2 网页设置
+
+1. 在 ytdl-app 网页点「⚙ 代理设置」展开（默认隐藏，与 Cookie 面板独立）
+2. 填入代理地址（例如 `http://192.168.31.10:7890`）
+3. 点「保存」；成功会显示脱敏后的当前代理（例如 `http://192.168.31.10:7890`，**只显示协议/主机/端口，不显示用户名密码**）
+4. 点「测试」可立即用该代理实际访问一次 YouTube 验证连通性与认证（需等待数秒）
+5. 点「清除」恢复直连（需确认）
+
+### 5.3 相关文件与接口
+
+- 配置落盘：`config/proxy.txt`（权限 600，与 `cookies.txt` 同目录；保存用临时文件原子替换）
+- 接口：`GET/POST/DELETE /api/proxy`（查询/保存/清除）、`POST /api/proxy/test`（连通性测试）
+- 代理凭据不进入浏览器 `localStorage`、不出现在页面状态行；错误信息中的用户名/密码会被替换为 `***`
+
+---
+
+## 六、常用运维命令
 
 ```bash
 # 查看日志（跟随）
@@ -165,9 +200,9 @@ docker stop ytdl-app
 docker stop ytdl-app && docker rm ytdl-app
 
 # 更新到新版本
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 docker stop ytdl-app && docker rm ytdl-app
-# 重新 docker run（把 image tag 改成 v3.0.3）
+# 重新 docker run（把 image tag 改成 v3.0.4）
 
 # 清理悬空镜像
 docker image prune -f
@@ -175,12 +210,12 @@ docker image prune -f
 
 ---
 
-## 六、健康检查
+## 七、健康检查
 
 ```bash
 # 服务是否活着
 curl -s http://localhost:8765/api/version
-# 期望：{"ok":true,"version":"3.0.3"}
+# 期望：{"ok":true,"version":"3.0.4"}
 
 # 磁盘空间（下载大文件必备）
 df -h ~/ytdl-app/downloads
@@ -188,7 +223,7 @@ df -h ~/ytdl-app/downloads
 
 ---
 
-## 七、常见问题
+## 八、常见问题
 
 **Q1: 视频一直报 `Sign in to confirm you're not a bot`？**  
 Cookie 过期，按第四节上传新 Cookie。
@@ -213,12 +248,12 @@ Cookie 过期，按第四节上传新 Cookie。
 
 ---
 
-## 八、升级与回滚
+## 九、升级与回滚
 
 ### 升级
 
 ```bash
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3   # 新 tag
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4   # 新 tag
 docker stop ytdl-app && docker rm ytdl-app
 # 修改 compose.yml 里的 image tag，或重新 docker run 指定新 tag
 docker compose up -d    # 或者用第一节的一键命令
@@ -227,21 +262,21 @@ docker compose up -d    # 或者用第一节的一键命令
 ### 回滚
 
 ```bash
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
 docker stop ytdl-app && docker rm ytdl-app
-docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.3 ...
+docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4 ...
 ```
 
 数据（视频、Cookie）都在宿主机挂载目录，升级/回滚不丢。
 
 ---
 
-## 九、镜像元信息
+## 十、镜像元信息
 
 | 字段 | 值 |
 |---|---|
 | 仓库 | `registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app` |
-| 当前版本 | `v3.0.3` |
+| 当前版本 | `v3.0.4` |
 | 镜像大小 | 约 1.2 GB（含 Node/ffmpeg/yt-dlp） |
 | 基础镜像 | `python:3.12-slim` |
 | 端口 | `8765` |
