@@ -280,7 +280,7 @@ docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4 ...
 | 镜像大小 | 约 1.2 GB（含 Node/ffmpeg/yt-dlp） |
 | 基础镜像 | `python:3.12-slim` |
 | 端口 | `8765` |
-| 运行进程 | gunicorn（2 worker，timeout 7200s） |
+| 运行进程 | gunicorn（1 worker + gthread 线程池，timeout 7200s） |
 | 系统语言 | 中文界面 |
 | 目标硬件 | NAS / x86_64 Linux |
 

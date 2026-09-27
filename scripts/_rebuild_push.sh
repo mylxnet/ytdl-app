@@ -1,12 +1,20 @@
 #!/bin/bash
 # 方案 B：禁用 buildx provenance 重新构建镜像，然后推送 ACR
-# 用法：在项目根目录执行  bash scripts/_rebuild_push.sh [版本号]
+# 用法：在项目根目录执行  bash scripts/_rebuild_push.sh [版本号] [nocache]
 #       版本号省略时用脚本内默认值（发布新版本时请显式传入）
-# 例：  bash scripts/_rebuild_push.sh v3.0.2
+#       默认走构建缓存；只有底层依赖（Dockerfile 里的 apt / pip 安装）变更时才需要
+#       传第二个参数 nocache。全量无缓存构建在 WSL 上极慢——apt 装 ffmpeg 会触发
+#       dpkg / shared-mime-info postinst，实测停机 19 分钟（2026-09-28）。
+# 例：  bash scripts/_rebuild_push.sh v3.0.4          # 常规发布，走缓存
+#       bash scripts/_rebuild_push.sh v3.0.4 nocache  # 依赖变更时全量重建
 set -e
 
 REG="registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app"
 VER="${1:-v3.0.4}"          # 目标版本 tag，可由第一个参数覆盖
+NOCACHE=""                  # 第二个参数为 nocache 时才加 --no-cache
+if [ "${2:-}" = "nocache" ]; then
+    NOCACHE="--no-cache"
+fi
 # 脚本所在目录的上一级 = 项目根
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -28,11 +36,15 @@ docker rmi "$REG:$VER" 2>/dev/null || true
 docker rmi "$REG:latest" 2>/dev/null || true
 
 echo ""
-echo "=== 3. 用 buildx 重新构建，禁用 provenance ==="
+MODE="走缓存"
+if [ -n "$NOCACHE" ]; then
+    MODE="全量无缓存"
+fi
+echo "=== 3. 用 buildx 重新构建，禁用 provenance（$MODE） ==="
 date +"%H:%M:%S  start build"
 cd "$SRC_DIR"
 docker buildx build \
-    --no-cache \
+    $NOCACHE \
     --provenance=false \
     --platform linux/amd64 \
     -t ytdl-app:latest \
