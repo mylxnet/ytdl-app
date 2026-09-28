@@ -26,7 +26,7 @@ COOKIE_BACKUP = COOKIES_FILE.with_name(COOKIES_FILE.name + ".bak")
 NODE_PATH = os.environ.get("NODE_PATH", "")
 HISTORY_FILE = DOWNLOAD_DIR / ".history.json"
 
-VERSION = "3.0.5"
+VERSION = "3.0.6"
 
 # Cookie 上传限制：正常 cookies.txt 只有几 KB，1MB 足够且能挡住异常大文件
 MAX_COOKIE_SIZE = 1024 * 1024

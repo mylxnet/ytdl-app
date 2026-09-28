@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.5** · by Mr lin（配套桌面工具 V1.0.1）
+**版本：V3.0.6** · by Mr lin（配套桌面工具 V1.0.1）
 
 ---
 
@@ -50,22 +50,22 @@ docker compose up -d --build
 
 ```bash
 mkdir -p downloads config
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.6
 docker run -d --name ytdl-app --restart unless-stopped \
   -p 8765:8765 \
   -v "$PWD/downloads":/downloads \
   -v "$PWD/config":/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.6
 ```
 
 **离线部署（NAS 无公网）**
 
 ```bash
 # 联网机器导出
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5 -o ytdl-app-v3.0.5.tar
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.6 -o ytdl-app-v3.0.6.tar
 # 拷到 NAS 后加载
-docker load -i ytdl-app-v3.0.5.tar
+docker load -i ytdl-app-v3.0.6.tar
 ```
 
 详见 [DEPLOY.md](./doc/DEPLOY.md)。
@@ -256,6 +256,22 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 ---
 
 ## 更新日志
+
+### V3.0.6（2026-09-28）
+
+**新增**
+- 页面 footer 署名「by Mr lin」改为**可点击超链接**，指向项目仓库 `https://github.com/mylxnet/ytdl-app`（新开标签页）
+- 下载页两处 Cookie 引导文案统一为「用工具 YtCookieExporter 导出 cookies.txt」，并链到桌面工具 Release 页，与配套工具联动
+- 新增 `footer a / .help a / .up-zone a` 统一链接样式（强调色 + 下划线，hover 变亮）
+
+**优化**
+- 桌面工具 `YtCookieExporter` 升版 **V1.0.1**，状态栏署名同样支持点击跳转仓库（见 [tool-v1.0.1](https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.1)）
+- README 项目结构树把桌面工具前置并标注「普通用户用这个」，`刷新Cookie.bat / .ps1` 标注「⚠️ 仅开发者本机使用（写死本机浏览器路径）」
+
+**发布**
+- GitHub Release：[v3.0.6](https://github.com/mylxnet/ytdl-app/releases/tag/v3.0.6)，含两个附件——`ytdl-app-v3.0.6.tar.gz`（镜像离线包，298,462,561 字节）与 `YtCookieExporter.exe`（桌面工具，19,660,669 字节）
+- 阿里云 ACR：`v3.0.6` 与 `latest` 为同一镜像，digest `sha256:338a8196…`
+- 回归测试：`test_v3.py` 22 项 / `test_proxy.py` 25 项 / `test_upload.py` 5 项全通过
 
 ### V3.0.5（2026-09-28）
 
