@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.4** · by Mr lin（配套桌面工具 V1.0.0）
+**版本：V3.0.5** · by Mr lin（配套桌面工具 V1.0.0）
 
 ---
 
@@ -50,22 +50,22 @@ docker compose up -d --build
 
 ```bash
 mkdir -p downloads config
-docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
+docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5
 docker run -d --name ytdl-app --restart unless-stopped \
   -p 8765:8765 \
   -v "$PWD/downloads":/downloads \
   -v "$PWD/config":/config \
   -e TZ=Asia/Shanghai \
-  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
+  registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5
 ```
 
 **离线部署（NAS 无公网）**
 
 ```bash
 # 联网机器导出
-docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4 -o ytdl-app-v3.0.4.tar
+docker save registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5 -o ytdl-app-v3.0.5.tar
 # 拷到 NAS 后加载
-docker load -i ytdl-app-v3.0.4.tar
+docker load -i ytdl-app-v3.0.5.tar
 ```
 
 详见 [DEPLOY.md](./doc/DEPLOY.md)。
@@ -256,6 +256,12 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 ---
 
 ## 更新日志
+
+### V3.0.5（2026-09-28）
+
+**修复**
+- **「下载完成后，已缓存文件列表不刷新」**：SSE 推送处理里，`done` / `skipped` 分支会调用 `loadFiles()` 刷新列表，但兜底分支（后端查不到任务、返回 `{"status":"gone"}`）只关闭了连接、没有刷新。NAS 实测现象：任务显示结束、磁盘上 mp4 已生成，页面列表却始终看不到新文件。现兜底分支补上 `loadFiles()`（1 行改动）
+- 实测验证（Chrome DevTools 打 `fetch` 计数桩，手动触发兜底分支 `listen('nonexistent000')`）：`{"status":"任务已结束","filesCalls":1,"fileCount":"1"}`，确认该分支确实发起了一次 `/api/files` 请求
 
 ### V3.0.4（2026-09-28）
 

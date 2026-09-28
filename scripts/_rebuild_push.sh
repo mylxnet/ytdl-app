@@ -5,12 +5,12 @@
 #       默认走构建缓存；只有底层依赖（Dockerfile 里的 apt / pip 安装）变更时才需要
 #       传第二个参数 nocache。全量无缓存构建在 WSL 上极慢——apt 装 ffmpeg 会触发
 #       dpkg / shared-mime-info postinst，实测停机 19 分钟（2026-09-28）。
-# 例：  bash scripts/_rebuild_push.sh v3.0.4          # 常规发布，走缓存
-#       bash scripts/_rebuild_push.sh v3.0.4 nocache  # 依赖变更时全量重建
+# 例：  bash scripts/_rebuild_push.sh v3.0.5          # 常规发布，走缓存
+#       bash scripts/_rebuild_push.sh v3.0.5 nocache  # 依赖变更时全量重建
 set -e
 
 REG="registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app"
-VER="${1:-v3.0.4}"          # 目标版本 tag，可由第一个参数覆盖
+VER="${1:-v3.0.5}"          # 目标版本 tag，可由第一个参数覆盖
 NOCACHE=""                  # 第二个参数为 nocache 时才加 --no-cache
 if [ "${2:-}" = "nocache" ]; then
     NOCACHE="--no-cache"

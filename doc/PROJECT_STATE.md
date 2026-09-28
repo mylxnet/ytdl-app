@@ -1,7 +1,7 @@
 # 项目状态 / 交接文档
 
 > 项目：YouTube 下载器（ytdl-app）
-> 当前版本：**V3.0.4**（2026-09-28）
+> 当前版本：**V3.0.5**（2026-09-28）
 > 署名：by Mr lin
 
 ---
@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本号 | 3.0.4 |
+| 版本号 | 3.0.5 |
 | 代码位置 | `e:\work\ytdl-app` |
 | 镜像 | `ytdl-app:latest`（WSL `lxsyzd` 内） |
 | 访问地址 | http://localhost:8765 |
@@ -19,13 +19,13 @@
 | 桌面工具版本 | 1.0.0（`tools/cookie-exporter`，独立版本号，见 2.4） |
 
 **版本号三处一致性校验**：
-- 后端 `app/main.py` 第 29 行 `VERSION = "3.0.4"`
-- 页面 footer `V3.0.4 · by Mr lin`（footer 由后端注入 `V{{ version }}`，实测页面 HTML：`<footer>V3.0.4  ·  by Mr lin</footer>`）
-- 本文档 / README.md / DESIGN.md / DEPLOY.md 均标注 V3.0.4
+- 后端 `app/main.py` 第 29 行 `VERSION = "3.0.5"`
+- 页面 footer `V3.0.5 · by Mr lin`（footer 由后端注入 `V{{ version }}`，实测页面 HTML：`<footer>V3.0.5  ·  by Mr lin</footer>`）
+- 本文档 / README.md / DESIGN.md / DEPLOY.md 均标注 V3.0.5
 
 ---
 
-## 二、已完成功能（V3.0.4）
+## 二、已完成功能（V3.0.5）
 
 ### 2.1 V3 本轮重构
 | 功能 | 实现位置 | 验证方式 |
@@ -449,7 +449,7 @@ docker exec -it ytdl-app bash
 
 ### 导出镜像给 NAS / 服务器
 ```bash
-docker save ytdl-app:latest | gzip > ytdl-app-v3.0.4.tar.gz
+docker save ytdl-app:latest | gzip > ytdl-app-v3.0.5.tar.gz
 ```
 
 ### 推送到阿里云 ACR
@@ -457,9 +457,9 @@ docker save ytdl-app:latest | gzip > ytdl-app-v3.0.4.tar.gz
 **推荐：一键脚本（版本号可传参，不用再手改脚本）**
 ```bash
 cd /mnt/e/work/ytdl-app
-bash scripts/_rebuild_push.sh v3.0.4   # 省略参数则用脚本默认版本
+bash scripts/_rebuild_push.sh v3.0.5   # 省略参数则用脚本默认版本
 ```
-脚本流程：停容器 → 清旧镜像 → buildx 无缓存构建（`--provenance=false`）→ 起容器验版本 → 打 ACR tag → 推送版本 tag 与 latest → `imagetools inspect` 远端 manifest 校验。
+脚本流程：停容器 → 清旧镜像 → buildx 构建（**默认走缓存**，仅底层依赖变更时才传第二个参数 `nocache`；`--provenance=false`）→ 起容器验版本 → 打 ACR tag → 推送版本 tag 与 latest → `imagetools inspect` 远端 manifest 校验。
 
 **手工等价命令**
 ```bash
@@ -468,11 +468,11 @@ docker buildx build --no-cache --provenance=false \
     --platform linux/amd64 -t ytdl-app:latest .
 
 # 打 tag
-docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
+docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5
 docker tag ytdl-app:latest registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 推送
-docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.4
+docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5
 docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 
 # 反向验证（按 digest 拉取，跳过本机 tag 缓存）
@@ -488,26 +488,26 @@ docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返
 本地镜像   -> ID e26cdede047f（与远端 digest 前缀一致，确认为同一镜像）
 容器复验   -> docker top: 仅 1 个 gunicorn worker；docker logs: Using worker: gthread；curl /api/version: {"ok":true,"version":"3.0.3"}
 ```
-⚠️ ACR 上的 `v3.0.1` 仍是坏的（`--windowsfilenames` 参数名拼写错误，解析/下载/Cookie 验证全失效），NAS 若已拉取该 tag，需更新到 `v3.0.4`。
+⚠️ ACR 上的 `v3.0.1` 仍是坏的（`--windowsfilenames` 参数名拼写错误，解析/下载/Cookie 验证全失效），NAS 若已拉取该 tag，需更新到 `v3.0.5`。
 
 ### NAS / 服务器部署
 ```bash
-# 上传 ytdl-app-v3.0.4.tar.gz 和 docker-compose.server.yml 到服务器
+# 上传 ytdl-app-v3.0.5.tar.gz 和 docker-compose.server.yml 到服务器
 cd /opt/ytdl
 mkdir -p downloads config
-gunzip -c ytdl-app-v3.0.4.tar.gz | docker load
+gunzip -c ytdl-app-v3.0.5.tar.gz | docker load
 docker compose -f docker-compose.server.yml up -d
 ```
 
 ### 版本号递增流程
-1. 改 `app/main.py` 的 `VERSION = "3.0.4"`
+1. 改 `app/main.py` 的 `VERSION = "3.0.5"`
 2. 页面 footer **无需手改**——`templates/index.html` 用 `V{{ version }}`，由后端 `VERSION` 注入
 3. 改 `README.md` / `DESIGN.md` / `PROJECT_STATE.md` / `DEPLOY.md` 中的版本号，并同步变更记录
 4. `cd deploy && docker compose up -d --build`（**改代码后必须重建镜像**，只 `docker restart` 不生效，见踩坑 #17）
 5. 跑回归测试：`test/test_v3.py` + `test/test_proxy.py` + `test/test_upload.py`
 6. `git commit` 中文提交信息
-7. 导出镜像 `ytdl-app-v3.0.4.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
-8. 推送到 ACR：`bash scripts/_rebuild_push.sh v3.0.4`（见上一节「推送到阿里云 ACR」）
+7. 导出镜像 `ytdl-app-v3.0.5.tar.gz`（**附件名用 ASCII**，不要用中文文件名）
+8. 推送到 ACR：`bash scripts/_rebuild_push.sh v3.0.5`（见上一节「推送到阿里云 ACR」）
 
 ### 桌面工具打包（tools/cookie-exporter）
 ```powershell
@@ -574,6 +574,7 @@ git push origin tool-v1.0.0
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| V3.0.5 | 2026-09-28 | **修复「下载完成后已缓存文件列表不刷新」**：`templates/index.html` 的 SSE `onmessage` 里 `done` / `skipped` 分支都调了 `loadFiles()`，唯独兜底分支（后端 `TASKS` 查不到任务、推送 `{"status":"gone"}`）只 `es.close()`，导致任务结束但页面列表看不到新文件——NAS 实测：任务显示结束、磁盘上 `.part` 已合并为 mp4，列表却无新条目。现兜底分支补 `loadFiles()`（1 行）。验证方式：Chrome DevTools 给 `window.fetch` 打计数桩，手动调用 `listen('nonexistent000')` 触发该分支，返回 `{"status":"任务已结束","filesCalls":1,"fileCount":"1"}`，`filesCalls=1` 证实确实发起了一次 `/api/files`。**发布说明**：V3.0.4 已推 ACR（v3.0.4 + latest，digest `6a15b8fe…`）、NAS 即此版本，但 GitHub 侧未打 tag、未建 Release；本次一并补 v3.0.5 的 tag 与 Release |
 | V3.0.4 | 2026-09-28 | **新增代理设置功能**（见 2.7）：`GET/POST/DELETE /api/proxy` + `POST /api/proxy/test`，`_base_args()` 统一注入 `--proxy`；`proxy.txt` 与 Cookie 同目录持久化（权限 600）；代理凭据全程脱敏（`_mask_proxy_url`），错误日志替换用户名/密码为 `***`；前端「⚙ 代理设置」默认隐藏、点击展开；新增 `test/test_proxy.py`。**修复**：①**容器跑旧代码**——compose 用 `build: ..` 把代码 `COPY` 进镜像，改完只 `docker restart` 不生效，代理 5 条路由此前全为 404，重建镜像后复验读写删闭环与 `/api/proxy/test` 通过（新增踩坑 #17）；②`test/test_upload.py` 的**无效断言**「原样上传后 md5 必须一致」不成立（`_verify_cookie()` 调用的 yt-dlp 退出时回写 `--cookies` 文件），改为「上传成功 + 关键登录凭证仍在」；③`test/test_proxy.py` 第六节吞异常盲区——服务不可达由「跳过」改为判 FAIL。全量回归 `test_v3.py` 22 项 + `test_proxy.py` 25 项 + `test_upload.py` 5 项全通过；第七节 md5 遗留问题结案、P0 清空；`DESIGN.md` 接口清单/安全问题/里程碑、`README.md` API 表与更新日志、`DEPLOY.md` 第五章同步 |
 | 文档 | 2026-09-24 | 新增「桌面工具发布规范」：exe 只作为 GitHub Release 附件发布、不入 git 仓库（`DESIGN.md` 8.7 讲原则 + 本文档第八章讲命令 + 协作约定一条）；README 与 2.4 节补 Release 下载链接与 SHA256 校验值 |
 | V3.0.3 | 2026-09-24 | **修复「页面进度不动、文件其实已下载」**：gunicorn 由 `-w 2`（sync）改为 `-w 1 -k gthread --threads 8`，消除多 worker 进程内状态分裂；输出文件名加入画质标记，换画质可真正重下；识别 `has already been downloaded` 并如实上报 `skipped`，不再虚增历史。本机实测：单 worker、任务状态 20/20 命中（修复前 15/20）、SSE 实时进度正常、720p 真实下载 20.03 MB、同画质重下 skipped。新增踩坑 #16 |
