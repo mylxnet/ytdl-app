@@ -479,7 +479,18 @@ docker push registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:latest
 docker pull registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app@sha256:<推送返回的 digest>
 ```
 
-**最近一次推送记录（V3.0.3，2026-09-24）**
+**最近一次推送记录（V3.0.5，2026-09-28）**
+```
+构建       -> buildx --provenance=false --platform linux/amd64（走缓存），19:37:18 → 19:37:35
+推送返回   -> v3.0.5  digest: sha256:a5efb8745ba7bcb193a46d059a0a2d2c824e7dc194894107760b7fc208678f6a size: 2383
+推送返回   -> latest  digest: sha256:a5efb8745ba7bcb193a46d059a0a2d2c824e7dc194894107760b7fc208678f6a size: 2383（同一镜像）
+远端校验   -> MediaType: application/vnd.oci.image.manifest.v1+json（单 manifest，无 attestation，见踩坑 #6）
+本地镜像   -> ID sha256:a5efb8745ba7（与远端 digest 前缀一致，确认为同一镜像）
+容器复验   -> 容器内 `templates/index.html` md5 `b012b393a1b5c9dead3c7e19cb24bc91` 与主机一致（修复已固化进镜像，不再是 docker cp 的临时状态）；curl /api/version: {"ok":true,"version":"3.0.5"}
+回归测试   -> test_v3.py PASS=22 / test_proxy.py PASS=25 / test_upload.py PASS=5，FAIL 均为 0
+```
+
+**上一次推送记录（V3.0.3，2026-09-24）**
 ```
 构建       -> buildx --no-cache --provenance=false --platform linux/amd64，02:34:29 → 02:40:48
 推送返回   -> v3.0.3  digest: sha256:e26cdede047f63be3598faa8f147c5471ced8bdf5c0d288ab7ddc589f9d4c1ed size: 2382

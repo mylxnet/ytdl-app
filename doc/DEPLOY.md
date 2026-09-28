@@ -277,6 +277,7 @@ docker run ... registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app:v3.0.5 ...
 |---|---|
 | 仓库 | `registry.cn-hangzhou.aliyuncs.com/mylxnet/ytdl-app` |
 | 当前版本 | `v3.0.5` |
+| 镜像 digest | `sha256:a5efb8745ba7bcb193a46d059a0a2d2c824e7dc194894107760b7fc208678f6a`（v3.0.5） |
 | 镜像大小 | 约 1.2 GB（含 Node/ffmpeg/yt-dlp） |
 | 基础镜像 | `python:3.12-slim` |
 | 端口 | `8765` |
