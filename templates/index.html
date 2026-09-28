@@ -79,6 +79,8 @@ h2 { font-size:16px; color:var(--dim); font-weight:500; margin-bottom:12px; disp
 .help code { background:#0d0f13; border:1px solid var(--line); border-radius:4px; padding:1px 5px;
              font-size:12px; color:#cbd5e1; }
 footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; letter-spacing:.4px; }
+footer a, .help a, .up-zone a { color:var(--acc); text-decoration:none; border-bottom:1px solid var(--acc); }
+footer a:hover, .help a:hover, .up-zone a:hover { color:#60a5fa; border-bottom-color:#60a5fa; }
 </style>
 </head>
 <body>
@@ -142,7 +144,7 @@ footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; l
   <div class="cookie-body hidden" id="cookieBody">
     <div class="up-zone">
       <input type="file" id="cookieFile" accept=".txt,text/plain">
-      <div style="margin-top:10px;">Netscape 格式 cookies.txt（本机 <code style="font-size:12px;">刷新Cookie.bat</code> 导出）。上传后自动验证，无需重启服务。</div>
+      <div style="margin-top:10px;">Netscape 格式 cookies.txt（用工具<a href="https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.1" target="_blank" rel="noopener noreferrer">YtCookieExporter</a>导出）。上传后自动验证，无需重启服务。</div>
     </div>
     <div class="status" id="cookieMsg"></div>
   </div>
@@ -176,13 +178,13 @@ footer { text-align:center; color:var(--dim); font-size:13px; margin-top:22px; l
     <li><b>预览</b>：文件列表点 <b>[预览]</b> 在页内播放，支持拖动进度。</li>
     <li><b>保存到自己电脑</b>：点 <b>[下载]</b>，浏览器弹出「另存为」，选择本地目录即可（文件已存在服务器磁盘，下载是把它拷回本机）。</li>
     <li><b>删除</b>：点 <b>[删除]</b> 并确认，从服务器磁盘移除该文件。</li>
-    <li><b>Cookie 失效</b>：所有视频都报 <code>Sign in to confirm you're not a bot</code> 时，用本机浏览器登录 youtube.com 导出 cookies.txt，在本页点「⚙ Cookie 设置」展开后上传，<b>无需重启</b>。</li>
+    <li><b>Cookie 失效</b>：所有视频都报 <code>Sign in to confirm you're not a bot</code> 时，用本机浏览器登录 youtube.com，用工具<a href="https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.1" target="_blank" rel="noopener noreferrer">YtCookieExporter</a>导出 cookies.txt，在本页点「⚙ Cookie 设置」展开后上传，<b>无需重启</b>。</li>
     <li><b>代理（可选）</b>：网络不可达时可点「⚙ 代理设置」展开，填写 <code>http://主机:端口</code> 或 <code>socks5://主机:端口</code> 后保存；代理同时用于解析、Cookie 验证和下载，清除后恢复直连。</li>
     <li><b>队列串行</b>：同时只下载 1 个任务，避免触发 YouTube 风控；下载中刷新页面不影响任务继续。</li>
   </ol>
 </div>
 
-<footer>V{{ version }}  ·  by Mr lin</footer>
+<footer>V{{ version }}  ·  <a href="https://github.com/mylxnet/ytdl-app" target="_blank" rel="noopener noreferrer">by Mr lin</a></footer>
 
 <!-- 预览弹窗 -->
 <div class="modal hidden" id="modal" onclick="if(event.target===this)closeModal()">

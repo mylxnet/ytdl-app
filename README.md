@@ -3,7 +3,7 @@
 粘贴 YouTube 链接 → 解析预览 → 倒计时 3 秒自动下载 → 页内预览 / 下载回本机。
 Flask + yt-dlp + ffmpeg + Node（EJS 挑战），Docker 镜像交付。部署在 NAS，浏览器访问。
 
-**版本：V3.0.5** · by Mr lin（配套桌面工具 V1.0.0）
+**版本：V3.0.5** · by Mr lin（配套桌面工具 V1.0.1）
 
 ---
 
@@ -115,13 +115,13 @@ ytdl-app/
 │   ├── test_upload.py
 │   └── test_e2e.sh
 ├── tools/                   # 用户运维工具
-│   ├── 刷新Cookie.bat       # Windows 一键导出 Cookie
-│   ├── 刷新Cookie.ps1
-│   ├── _backup.sh           # Cookie 备份脚本
-│   └── cookie-exporter/     # Cookie 导出桌面工具（单文件 exe，独立版本 V1.0.0）
-│       ├── src/             # main.py 界面 / exporter.py 导出校验 / browsers.py 浏览器扫描
-│       ├── assets/          # 应用图标 icon.ico
-│       └── build/           # build.ps1（打包素材，长期保留）+ dist/YtCookieExporter.exe
+│   ├── cookie-exporter/     # Cookie 导出桌面工具（普通用户用这个，单文件 exe，独立版本 V1.0.1）
+│   │   ├── src/             # main.py 界面 / exporter.py 导出校验 / browsers.py 浏览器扫描
+│   │   ├── assets/          # 应用图标 icon.ico
+│   │   └── build/           # build.ps1（打包素材，长期保留）+ dist/YtCookieExporter.exe
+│   ├── 刷新Cookie.bat       # ⚠️ 仅开发者本机使用（写死本机浏览器路径），普通用户请用上面的 YtCookieExporter
+│   ├── 刷新Cookie.ps1       # ⚠️ 同上，仅开发者本机使用
+│   └── _backup.sh           # Cookie 备份脚本
 ├── scripts/                 # 发布脚本
 │   └── _rebuild_push.sh     # 重建镜像 + 推 ACR
 ├── Dockerfile               # 镜像构建
@@ -175,7 +175,7 @@ ytdl-app/
 
 **推荐做法**（V3）：
 1. 本机浏览器登录 youtube.com
-2. 导出 `cookies.txt`——直接用 [桌面工具](#桌面工具cookie-导出器可选)：从 [Release tool-v1.0.0](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.0/YtCookieExporter.exe) 下载 `YtCookieExporter.exe`（或本地构建产物 `tools/cookie-exporter/build/dist/YtCookieExporter.exe`），双击 → 选浏览器 → 选保存位置 → 点导出
+2. 导出 `cookies.txt`——直接用 [桌面工具](#桌面工具cookie-导出器可选)：从 [Release tool-v1.0.1](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.1/YtCookieExporter.exe) 下载 `YtCookieExporter.exe`（或本地构建产物 `tools/cookie-exporter/build/dist/YtCookieExporter.exe`），双击 → 选浏览器 → 选保存位置 → 点导出
 3. 网页 → 「上传 Cookie」→ 选择文件
 4. 系统自动验证并生效，**无需重启**
 
@@ -207,14 +207,14 @@ cp config/cookies.txt /path/to/backup/cookies.txt.$(date +%Y%m%d)
 
 `tools/cookie-exporter` 是配套的本机小程序，用来生成上面第 2 步的 `cookies.txt`。
 
-**版本 V1.0.0** · by Mr lin
+**版本 V1.0.1** · by Mr lin
 
 | 项 | 值 |
 |---|---|
-| 交付物 | `YtCookieExporter.exe`（单文件，约 18.7 MB）<br>**下载**：[Release tool-v1.0.0](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.0/YtCookieExporter.exe)（本地构建产物在 `tools/cookie-exporter/build/dist/`） |
+| 交付物 | `YtCookieExporter.exe`（单文件，约 18.7 MB）<br>**下载**：[Release tool-v1.0.1](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.1/YtCookieExporter.exe)（本地构建产物在 `tools/cookie-exporter/build/dist/`） |
 | 运行前提 | Windows x64，**目标机器无需安装 Python** |
 | 用法 | 双击运行 → 选浏览器 → 选保存位置 → 点「开始导出」 |
-| 校验值 | SHA256 `5E8149CECF0D6E5F8B3DE5045D52ED8C2890291E963A941E37EDCCFF25C8C736`（19,648,087 字节） |
+| 校验值 | SHA256 `3F191C5ADC6BD4F1503472E6438AFF9DA3F1FB5BC616DE95C55AE4E05C659CF6`（19,660,669 字节） |
 
 **特性**
 - 自动扫描本机浏览器的可用 profile（含 Helium、Chrome、Edge、Firefox 等）
@@ -325,6 +325,14 @@ A：网页 → 「打开目录」按钮，或访问 `/api/open-folder`。
 - 镜像已推送阿里云 ACR：`v3.0.2` 与 `latest`（digest `sha256:fc8c0c87…`，已通过远端 manifest 校验）
 - ACR 上的 `v3.0.1` 仍是坏镜像（参数名拼写错误），请勿使用；已拉取该 tag 的 NAS 需更新到 `v3.0.2`
 - 发布脚本 `scripts/_rebuild_push.sh` 版本号已参数化：`bash scripts/_rebuild_push.sh v3.0.2`
+
+### 桌面工具 V1.0.1（2026-09-28）
+
+**新增**
+- 状态栏署名「by Mr lin」改为**可点击超链接**（蓝色 + 下划线 + 手型光标），点击用系统默认浏览器打开项目仓库 `https://github.com/mylxnet/ytdl-app`。Tkinter 的 `Label` 没有原生超链接能力，用 `Label` + `bind("<Button-1>")` + `webbrowser.open` 实现
+
+**发布**
+- GitHub Release：[tool-v1.0.1](https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.1)，附件 `YtCookieExporter.exe`（19,660,669 字节，SHA256 `3F191C5A…`）
 
 ### 桌面工具 V1.0.0（2026-09-24）
 

@@ -242,13 +242,14 @@ cd /mnt/e/work/ytdl-app && docker compose up -d
 | **V3.0.3（已完成，本机实测通过）** | **修复「页面进度不动、文件其实已下载」：gunicorn 改单进程 + gthread，消除多 worker 进程内状态分裂；文件名加入画质标记，换画质可真正重下；已存在文件如实上报 `skipped`** | ✅ |
 | **V3.0.4（已完成，本机复验通过）** | **新增代理设置：网页保存 / 清除 / 连通性测试，`_base_args()` 统一注入 `--proxy`（解析 / 验证 / 下载共用），`proxy.txt` 持久化；修复「容器跑旧代码导致代理路由 404」与两处测试缺陷** | ✅ |
 | **V3.0.5（已完成，本机复验通过）** | **修复「任务结束后已缓存文件列表不刷新」：SSE 兜底分支（后端查不到任务、返回 `gone`）漏调 `loadFiles()`，现补齐（1 行改动）** | ✅ |
+| **桌面工具 V1.0.1（已完成，本机实测通过）** | **状态栏署名改为可点击链接，点击用系统默认浏览器打开项目仓库（Tkinter 无原生超链接控件，用 `Label` + `bind("<Button-1>")` + `webbrowser.open` 实现）** | ✅ |
 | **桌面工具 V1.0.0（已完成）** | **Cookie 导出器：浏览器 Cookie → cookies.txt，单文件 exe 交付** | ✅ |
 | V4.0 | Cookie 健康横幅 + 失败自动重试 + 播放列表 + 访问密码 | 待排期 |
 | V4.x | 通知 + 磁盘预警 + 字幕 | 按需 |
 
 ---
 
-## 八、Cookie 导出桌面工具（tools/cookie-exporter，独立版本 V1.0.0）
+## 八、Cookie 导出桌面工具（tools/cookie-exporter，独立版本 V1.0.1）
 
 ### 8.1 为什么需要它
 
@@ -260,7 +261,7 @@ cd /mnt/e/work/ytdl-app && docker compose up -d
 |---|---|
 | 交付物 | `tools/cookie-exporter/build/dist/YtCookieExporter.exe`（**单文件，约 18.7 MB**） |
 | 运行前提 | Windows x64，**目标机器无需安装 Python**（Python 与 yt-dlp 已打进 exe） |
-| 版本 | V1.0.0（2026-09-24），界面署名 `V1.0.0  by Mr lin` |
+| 版本 | V1.0.1（2026-09-28），界面署名 `V1.0.1  by Mr lin`（署名可点击跳转项目仓库） |
 | 语言 / 界面 | Python 3.12 + Tkinter（浅色主题，白底灰边按钮，无红色按钮） |
 | 核心依赖 | yt-dlp 2026.8.19（读浏览器 Cookie 库并解密） |
 
@@ -348,6 +349,7 @@ powershell -ExecutionPolicy Bypass -File tools\cookie-exporter\build\build.ps1
 | V3.0.1 | 2026-09-24 | — | — | 文件名含全角竖线 `｜`、emoji 等特殊字符时 `.part` 写入失败（yt-dlp 参数新增 `--windowsfilenames` —— **参数名拼写错误，导致解析/下载/Cookie 验证三处全部失效，该版本实际不可用**） | 项目目录重组：`doc/` `test/` `deploy/` `tools/` `scripts/`，清理一次性调试脚本 |
 | V3.0.2 | 2026-09-24 | — | — | **紧急修复 V3.0.1 引入的致命回归**：yt-dlp 参数名 `--windowsfilenames` 更正为 `--windows-filenames`，恢复 `/api/probe`、`/api/download`、`/api/cookie-upload` 三条链路 | 版本号同步六处（后端 / 页面 footer / README / DESIGN / PROJECT_STATE / DEPLOY） |
 | V3.0.3 | 2026-09-24 | 前端新增 `skipped` 状态提示「该画质已存在，未重复下载」 | gunicorn 由 `-w 2` 改为 `-w 1 -k gthread --threads 8`：单进程保证任务状态唯一，线程池避免 SSE 独占 worker | ①「进度不动、文件已下载」——多 worker 各持一份 `TASKS`，SSE 落到另一 worker 即刻返回 `gone`；② 换画质重下被静默跳过（文件名不含画质）；③ 跳过时误报 done + 虚增历史（现识别 `has already been downloaded` → `skipped`） | 输出文件名模板加入画质标记 `[1080p]/[2160p]/[720p]/[audio]`；`/api/stream` 终止条件补 `skipped` |
+| 桌面工具 V1.0.1 | 2026-09-28 | 状态栏署名「by Mr lin」改为可点击超链接（蓝色 + 下划线 + 手型光标），点击用系统默认浏览器打开项目仓库；新增常量 `REPO_URL` 与方法 `App._open_repo()` | — | — | 接口清单与 README 工具章节同步为 V1.0.1；下载页两处 Cookie 说明统一为「用工具 YtCookieExporter 导出」并链到工具 Release 页；`刷新Cookie.bat / .ps1` 保留但标注「仅开发者本机使用」 |
 | 桌面工具 V1.0.0 | 2026-09-24 | `tools/cookie-exporter` 独立子模块：浏览器 Cookie → cookies.txt，单文件 exe（18.7 MB，目标机器免装 Python）；浏览器/profile 扫描；登录态三态验证；单实例防重复启动；应用图标 | 只保留 youtube.com / google.com 域（710 → 58 条），避免泄露整机账号凭证；提前拦截未选保存路径；浅色界面 + 白底灰边按钮 | 子线程直接操作 Tkinter 崩溃（改队列 + 主线程轮询）；网络抖动被误判 Cookie 失效（改三态 + 重试 3 次） | 打包脚本 `build.ps1` 固化保留（UTF-8 BOM）；`.gitignore` 忽略 exe 产物但保留打包素材 |
 | V3.0.4 | 2026-09-28 | 网页端代理设置（默认隐藏、点击展开）：`GET/POST/DELETE /api/proxy` 查询/保存/清除 + `POST /api/proxy/test` 连通性测试；`_base_args()` 统一注入 `--proxy`（解析/验证/下载共用）；`proxy.txt` 与 Cookie 同目录持久化 | 代理凭据脱敏（`_mask_proxy_url` 只回 `scheme://host:port`）；白名单协议校验防 SSRF；配置权限 600；保存后无需重启即生效 | ①**容器跑旧代码导致代理 5 条路由全部 404**（compose 把代码 `COPY` 进镜像，改完只 `docker restart` 不生效，须 `up -d --build`，见踩坑 #17）；② yt-dlp 错误原文含完整代理 URL 导致密码泄露（改为替换用户名/密码为 `***`）；③`test_upload.py` 无效断言（md5 必一致）改为「上传成功 + 关键凭证仍在」；④`test_proxy.py` 第六节吞异常盲区改为不可达即判 FAIL | 新增 `test/test_proxy.py`（25 项：URL 校验/脱敏/读写/`_base_args` 注入/路由闭环）；接口清单与 README 同步；DEPLOY.md 第五章同步用户操作说明 |
 | V3.0.5 | 2026-09-28 | — | — | **「下载完成后已缓存文件列表不刷新」**：`templates/index.html` 的 SSE `onmessage` 中 `done` / `skipped` 分支调了 `loadFiles()`，兜底分支（后端 `TASKS` 查不到任务、返回 `{"status":"gone"}`）只 `es.close()` 漏了刷新——NAS 实测任务已结束、磁盘已有 mp4，页面列表却看不到。兜底分支补 `loadFiles()`（1 行）。验证：Chrome DevTools 给 `window.fetch` 打计数桩并手动触发 `listen('nonexistent000')`，返回 `{"status":"任务已结束","filesCalls":1,"fileCount":"1"}` | — |

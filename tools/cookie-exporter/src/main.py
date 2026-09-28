@@ -21,14 +21,16 @@ import tempfile
 import threading
 import tkinter as tk
 import traceback
+import webbrowser
 from pathlib import Path
 from tkinter import filedialog, ttk
 
 import browsers
 import exporter
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 AUTHOR = "by Mr lin"
+REPO_URL = "https://github.com/mylxnet/ytdl-app"
 APP_TITLE = "YouTube Cookie 导出器"
 
 # ---- 配色（浅色主题）----
@@ -40,6 +42,7 @@ MUTED = "#6b7280"
 OK_COLOR = "#1a7f37"
 WARN_COLOR = "#9a6700"
 ERR_COLOR = "#a4262c"
+LINK_COLOR = "#1a73e8"
 FONT = "Microsoft YaHei UI"
 
 _MUTEX_NAME = "Local\\YtCookieExporter_SingleInstance"
@@ -201,8 +204,13 @@ class App:
         self.status_label = tk.Label(footer, text="就绪", bg=BG, fg=MUTED,
                                      font=(FONT, 9), anchor="w")
         self.status_label.pack(side="left", fill="x", expand=True)
-        tk.Label(footer, text=f"V{VERSION}  {AUTHOR}", bg=BG, fg=MUTED,
-                 font=(FONT, 9)).pack(side="right")
+        # 署名可点击跳转仓库（Tkinter 无原生超链接，用 Label 模拟：蓝色+下划线+手型光标）
+        sigl = tk.Label(footer, text=AUTHOR, bg=BG, fg=LINK_COLOR,
+                        font=(FONT, 9, "underline"), cursor="hand2")
+        sigl.pack(side="right")
+        sigl.bind("<Button-1>", lambda _e: self._open_repo())
+        tk.Label(footer, text=f"V{VERSION}", bg=BG, fg=MUTED,
+                 font=(FONT, 9)).pack(side="right", padx=(0, 8))
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -410,6 +418,10 @@ class App:
             self._append_log(f"导出完成：{result.count} 条 Cookie，但未能验证登录状态。")
             self._set_status(f"已导出（{result.count} 条，未验证）", WARN_COLOR)
         self._append_log("注意：该文件包含 YouTube 登录凭证，等同于账号密码，请勿外发。")
+
+    def _open_repo(self) -> None:
+        """点击署名，用系统默认浏览器打开项目仓库。"""
+        webbrowser.open(REPO_URL)
 
     def _on_close(self) -> None:
         """导出进行中拦截关闭，避免中途打断留下半成品。"""

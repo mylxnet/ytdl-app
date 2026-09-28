@@ -8,6 +8,9 @@ cookies.txt.*
 # --- 提交信息临时文件 ---
 _commit_msg.txt
 
+# --- 一次性发版脚本（本地留存，不入库）---
+scripts/_release_v305.sh
+
 # Cookie 双保险备份目录
 ytdl_safeback/
 

@@ -16,7 +16,7 @@
 | 访问地址 | http://localhost:8765 |
 | 下载目录 | `/mnt/e/Downloads/YouTube` |
 | Cookie 位置 | `./config/cookies.txt` |
-| 桌面工具版本 | 1.0.0（`tools/cookie-exporter`，独立版本号，见 2.4） |
+| 桌面工具版本 | 1.0.1（`tools/cookie-exporter`，独立版本号，见 2.4） |
 
 **版本号三处一致性校验**：
 - 后端 `app/main.py` 第 29 行 `VERSION = "3.0.5"`
@@ -80,19 +80,19 @@ delete    -> {"ok":true,"name":"Rick Astley - ..."}
 
 **验证状态**：**未做任何端到端验证即发版**（本轮按原决策跳过了本地实测，仅改代码与文档）。事后证明这是 V3.0.1 完全不可用的直接原因，见 2.5 与踩坑 #15
 
-### 2.4 桌面工具：Cookie 导出器（`tools/cookie-exporter`，独立版本 V1.0.0）
+### 2.4 桌面工具：Cookie 导出器（`tools/cookie-exporter`，独立版本 V1.0.1）
 
 **为什么有它**：主服务「网页热上传 Cookie」需要先有 `cookies.txt`。原流程要装浏览器插件手动导出，来源杂、格式不统一。本工具把它做成本机双击即用的小程序：选浏览器 → 选保存位置 → 点导出。
 
 | 项 | 值 |
 |---|---|
-| 版本 | **V1.0.0**（2026-09-24），界面署名 `V1.0.0  by Mr lin` |
-| 交付物 | `YtCookieExporter.exe`，单文件 **19,648,087 字节（18.7 MB）**；已作为 Release 附件发布：[tool-v1.0.0](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.0/YtCookieExporter.exe) |
+| 版本 | **V1.0.1**（2026-09-28），界面署名 `V1.0.1  by Mr lin`（署名可点击，跳转项目仓库） |
+| 交付物 | `YtCookieExporter.exe`，单文件 **19,660,669 字节（18.7 MB）**；已作为 Release 附件发布：[tool-v1.0.1](https://github.com/mylxnet/ytdl-app/releases/download/tool-v1.0.1/YtCookieExporter.exe) |
 | 运行前提 | Windows x64，**目标机器无需安装 Python**（Python 3.12 + yt-dlp 已打进 exe） |
 | 源码 | `src/main.py`（Tkinter 界面）、`src/exporter.py`（导出 + 校验 + 验证）、`src/browsers.py`（浏览器/profile 扫描） |
 | 打包素材 | `build/build.ps1`（长期保留，**必须带 UTF-8 BOM**，见踩坑 #11） |
 | 构建环境 | `.venv`：Python 3.12.10 + yt-dlp 2026.8.19 + PyInstaller 6.22.3 |
-| SHA256 | `5E8149CECF0D6E5F8B3DE5045D52ED8C2890291E963A941E37EDCCFF25C8C736` |
+| SHA256 | `3F191C5ADC6BD4F1503472E6438AFF9DA3F1FB5BC616DE95C55AE4E05C659CF6` |
 
 **用户硬性要求（勿打折）**：双击即用、目标机免装 Python；保存位置每次启动留空；只导出不上传；浏览器运行中只提示不代关；单文件 exe + ASCII 文件名；浅色界面、白/灰按钮（禁用红色与 danger）；实时日志真刷新；未选路径点导出必须提前拦截；无弹窗位移动画；防重复启动；导出中禁用破坏性入口。
 
@@ -113,6 +113,23 @@ tag        -> tool-v1.0.0（注解 tag，独立于主服务 v3.0.x 版本线）�
 Release    -> https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.0
 附件       -> YtCookieExporter.exe（19,648,087 字节，ASCII 文件名）
 下载回验   -> 下载后 SHA256 = 5E8149CE…C736，与本地构建产物完全一致
+```
+
+**本次变更与验证（V1.0.1，2026-09-28）**：状态栏署名改为**可点击超链接**（新增常量 `REPO_URL` + 方法 `App._open_repo()`，用 `Label` + `bind("<Button-1>")` + `webbrowser.open` 实现；Tkinter 的 `Label` 没有原生超链接控件）。
+
+```
+源码态验证 -> 构造 App 后遍历控件树：署名 Label 命中 1 个
+              fg=#1a73e8  cursor=hand2  font={Microsoft YaHei UI} 9 underline  绑定 <Button-1>=True
+              调用 _open_repo() 后 webbrowser.open 实收 ['https://github.com/mylxnet/ytdl-app']  -> PASS
+打包态验证 -> V1.0.1 exe 双击启动，窗口右下角显示 "V1.0.1   by Mr lin"，点击署名成功打开默认浏览器（用户实测通过）
+产物       -> 19,660,669 字节，SHA256 3F191C5A…CF6
+```
+
+**发布（V1.0.1，2026-09-28）**：exe 作为 **Release 附件**发布（不入 git 仓库）。
+```
+tag        -> tool-v1.0.1（注解 tag，独立于主服务 v3.0.x 版本线）
+Release    -> https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.1
+附件       -> YtCookieExporter.exe（19,660,669 字节，ASCII 文件名）
 ```
 
 ### 2.5 V3.0.2 紧急修复（V3.0.1 参数名拼写错误导致服务不可用）
@@ -585,6 +602,7 @@ git push origin tool-v1.0.0
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| 桌面工具 V1.0.1 | 2026-09-28 | **新增**：状态栏署名「by Mr lin」改为可点击超链接（蓝色 + 下划线 + 手型光标），点击用系统默认浏览器打开项目仓库 `https://github.com/mylxnet/ytdl-app`；新增常量 `REPO_URL` 与方法 `App._open_repo()`（Tkinter 的 `Label` 无原生超链接控件，用 `Label` + `bind("<Button-1>")` + `webbrowser.open` 实现）。**验证**：源码态遍历控件树断言 `fg=#1a73e8 / cursor=hand2 / font 含 underline / <Button-1> 绑定存在`，调用 `_open_repo()` 后 `webbrowser.open` 实收仓库地址 → PASS；打包态 V1.0.1 exe 实测点击成功跳转（用户验收）。**发布**：注解 tag `tool-v1.0.1` + [Release](https://github.com/mylxnet/ytdl-app/releases/tag/tool-v1.0.1)，附件 `YtCookieExporter.exe`（19,660,669 字节，SHA256 `3F191C5A…`）。**同步**：下载页两处 Cookie 说明统一为「用工具 YtCookieExporter 导出」并链到工具 Release 页；README 目录树把桌面工具前置并标注「普通用户用这个」，`刷新Cookie.bat / .ps1` 标注「仅开发者本机使用（写死本机浏览器路径）」；README / DESIGN 工具章节版本号与 SHA256 同步为 V1.0.1 |
 | V3.0.5 | 2026-09-28 | **修复「下载完成后已缓存文件列表不刷新」**：`templates/index.html` 的 SSE `onmessage` 里 `done` / `skipped` 分支都调了 `loadFiles()`，唯独兜底分支（后端 `TASKS` 查不到任务、推送 `{"status":"gone"}`）只 `es.close()`，导致任务结束但页面列表看不到新文件——NAS 实测：任务显示结束、磁盘上 `.part` 已合并为 mp4，列表却无新条目。现兜底分支补 `loadFiles()`（1 行）。验证方式：Chrome DevTools 给 `window.fetch` 打计数桩，手动调用 `listen('nonexistent000')` 触发该分支，返回 `{"status":"任务已结束","filesCalls":1,"fileCount":"1"}`，`filesCalls=1` 证实确实发起了一次 `/api/files`。**发布说明**：V3.0.4 已推 ACR（v3.0.4 + latest，digest `6a15b8fe…`）、NAS 即此版本，但 GitHub 侧未打 tag、未建 Release；本次一并补 v3.0.5 的 tag 与 Release。GitHub 侧已完成：注解 tag `v3.0.5` 已推送、Release [v3.0.5](https://github.com/mylxnet/ytdl-app/releases/tag/v3.0.5) 已发布，含两个附件——`YtCookieExporter.exe`（19,648,087 字节，SHA256 `5E8149CE…`）与 `ytdl-app-v3.0.5.tar.gz`（298,463,753 字节，SHA256 `9bdcf95b…`，`docker save` 导出，可复现） |
 | V3.0.4 | 2026-09-28 | **新增代理设置功能**（见 2.7）：`GET/POST/DELETE /api/proxy` + `POST /api/proxy/test`，`_base_args()` 统一注入 `--proxy`；`proxy.txt` 与 Cookie 同目录持久化（权限 600）；代理凭据全程脱敏（`_mask_proxy_url`），错误日志替换用户名/密码为 `***`；前端「⚙ 代理设置」默认隐藏、点击展开；新增 `test/test_proxy.py`。**修复**：①**容器跑旧代码**——compose 用 `build: ..` 把代码 `COPY` 进镜像，改完只 `docker restart` 不生效，代理 5 条路由此前全为 404，重建镜像后复验读写删闭环与 `/api/proxy/test` 通过（新增踩坑 #17）；②`test/test_upload.py` 的**无效断言**「原样上传后 md5 必须一致」不成立（`_verify_cookie()` 调用的 yt-dlp 退出时回写 `--cookies` 文件），改为「上传成功 + 关键登录凭证仍在」；③`test/test_proxy.py` 第六节吞异常盲区——服务不可达由「跳过」改为判 FAIL。全量回归 `test_v3.py` 22 项 + `test_proxy.py` 25 项 + `test_upload.py` 5 项全通过；第七节 md5 遗留问题结案、P0 清空；`DESIGN.md` 接口清单/安全问题/里程碑、`README.md` API 表与更新日志、`DEPLOY.md` 第五章同步 |
 | 文档 | 2026-09-24 | 新增「桌面工具发布规范」：exe 只作为 GitHub Release 附件发布、不入 git 仓库（`DESIGN.md` 8.7 讲原则 + 本文档第八章讲命令 + 协作约定一条）；README 与 2.4 节补 Release 下载链接与 SHA256 校验值 |
